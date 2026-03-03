@@ -9,7 +9,7 @@ icechunk = pytest.importorskip("icechunk")
 from icechunk import Repository, Storage  # noqa E402
 
 
-@pytest.fixture()
+@pytest.fixture
 def icechunk_storage(tmpdir) -> "Storage":
     print(f"creating new icechunk storage at {tmpdir}")
     return Storage.new_local_filesystem(str(tmpdir))
