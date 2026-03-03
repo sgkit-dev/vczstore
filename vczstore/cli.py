@@ -12,6 +12,16 @@ class NaturalOrderGroup(click.Group):
         return self.commands.keys()
 
 
+num_partitions = click.option(
+    "-n",
+    "--num-partitions",
+    type=click.IntRange(min=1),
+    default=None,
+    help="Target number of partitions to use for distributed operations",
+)
+
+partition = click.argument("partition", type=click.IntRange(min=0))
+
 impl = click.option(
     "-i",
     "--impl",
@@ -73,6 +83,45 @@ def remove(vcz, sample_id, impl, zarr_backend_storage):
 
 
 @click.command()
+@click.argument("vcz", type=click.Path())
+@click.argument("sample_id", type=str)
+@num_partitions
+def dremove_init(vcz, sample_id, num_partitions):
+    """
+    Initial step for distributed remove of a sample from vcz.
+    """
+    from vczstore.zarr_partition_impl import remove_init
+
+    remove_init(vcz, sample_id, num_partitions)
+
+
+@click.command()
+@click.argument("vcz", type=click.Path())
+@partition
+def dremove_partition(vcz, partition):
+    """
+    Remove a sample from vcz for a partition.
+
+    Must be called after the distributed remove operation has been
+    initialised with dremove_init.
+    """
+    from vczstore.zarr_partition_impl import remove_partition
+
+    remove_partition(vcz, partition)
+
+
+@click.command()
+@click.argument("vcz", type=click.Path())
+def dremove_finalise(vcz):
+    """
+    Final step for distributed remove of a sample from vcz.
+    """
+    from vczstore.zarr_partition_impl import remove_finalise
+
+    remove_finalise(vcz)
+
+
+@click.command()
 @click.argument("vcz1", type=click.Path())
 @click.argument("vcz2", type=click.Path())
 def copy_store_to_icechunk(vcz1, vcz2):
@@ -92,3 +141,6 @@ def vczstore_main():
 vczstore_main.add_command(append)
 vczstore_main.add_command(remove)
 vczstore_main.add_command(copy_store_to_icechunk)
+vczstore_main.add_command(dremove_init)
+vczstore_main.add_command(dremove_partition)
+vczstore_main.add_command(dremove_finalise)

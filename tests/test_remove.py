@@ -1,6 +1,8 @@
 import pytest
+import zarr
 
 from vczstore.zarr_impl import remove
+from vczstore.zarr_partition_impl import remove_finalise, remove_init, remove_partition
 
 from .utils import (
     check_removed_sample,
@@ -89,3 +91,41 @@ def test_remove_icechunk(tmp_path):
     session = repo.readonly_session("main")
     store = session.store
     check_removed_sample(store, "NA00002")
+
+
+def test_remove_partitioned(tmp_path):
+    print(tmp_path)
+
+    vcz = convert_vcf_to_vcz("chr22.vcf.gz", tmp_path, variants_chunk_size=10)
+
+    # check samples query
+    vcztools_out, _ = run_vcztools(f"query -l {vcz}")
+    assert len(vcztools_out.strip().split("\n")) == 100
+
+    remove_init(vcz, "HG00100", 3)
+    remove_partition(vcz, 0)
+    remove_partition(vcz, 1)
+    remove_partition(vcz, 2)
+    remove_finalise(vcz)
+
+    # check samples query
+    vcztools_out, _ = run_vcztools(f"query -l {vcz}")
+    assert "HG00100" not in vcztools_out
+    assert len(vcztools_out.strip().split("\n")) == 99
+
+    # check equivalence with original VCF (with sample subsetting)
+    reduced_samples = ",".join(vcztools_out.strip().split("\n"))
+    compare_vcf_and_vcz(
+        tmp_path,
+        f"view --no-version -s {reduced_samples}",
+        "chr22.vcf.gz",
+        "view --no-version",
+        vcz,
+    )
+
+    # check sample values are missing
+    check_removed_sample(vcz, "HG00100")
+
+    # check remove parameters are not in zarr attributes
+    root = zarr.open(vcz, mode="r+")
+    assert "remove" not in root.attrs

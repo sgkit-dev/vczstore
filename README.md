@@ -28,7 +28,7 @@ In addition the following things are missing or not yet supported:
 ### Demo
 
 * Transactions: none
-* Distributed: single machine
+* Distributed: single process
 * Zarr: v3, format 2
 
 ```shell
@@ -62,7 +62,7 @@ NA00003
 ```
 
 * Transactions: icechunk
-* Distributed: single machine
+* Distributed: single process
 * Zarr: v3, format 3
 
 ```shell
@@ -99,6 +99,30 @@ NA00001
 NA00003
 ```
 
+* Transactions: none
+* Distributed: multiple processes
+* Zarr: v3, format 2
+
+```shell
+% conda activate vczstore-poc-zarr-v3
+
+# Create some VCZ data
+% rm -rf data
+% mkdir data
+% vcf2zarr convert --no-progress --variants-chunk-size=10 tests/data/vcf/chr22.vcf.gz data/store.vcz
+
+# Show the samples in the store
+% vcztools query -l data/store.vcz | wc -l
+100
+
+# Remove a sample from the store using 3 processes
+% vczstore dremove-init data/store.vcz HG00100 -n 3
+% parallel -j 3 vczstore dremove-partition data/store.vcz {} ::: seq 0 2
+% vczstore dremove-finalise data/store.vcz
+% vcztools query -l data/store.vcz | wc -l
+99
+```
+
 ### Matrix testing
 
 All (quick)
@@ -115,7 +139,7 @@ BIO2ZARR_ZARR_FORMAT=3 pytest -vs -k icechunk
 ```
 
 * Transactions: none
-* Distributed: single machine
+* Distributed: single process
 * Zarr: v3
 
 ```shell
@@ -128,7 +152,7 @@ pytest -vs
 ```
 
 * Transactions: none
-* Distributed: single machine
+* Distributed: single process
 * Zarr: v3, format 3
 
 ```shell
@@ -141,7 +165,7 @@ BIO2ZARR_ZARR_FORMAT=3 pytest -vs
 ```
 
 * Transactions: icechunk
-* Distributed: single machine
+* Distributed: single process
 * Zarr: v3, format 3
 
 ```shell
