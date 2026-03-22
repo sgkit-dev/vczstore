@@ -14,7 +14,7 @@ import zarr
 from numpy.testing import assert_array_equal
 
 from vczstore.allele_harmonisation import harmonise_alleles
-from vczstore.zarr_impl import append
+from vczstore.zarr_impl import append_harmonise
 
 from .utils import (
     compare_vcf_and_vcz,
@@ -104,7 +104,7 @@ def test_append_harmonise(tmp_path):
     vcz1 = convert_vcf_to_vcz("alleles-1.vcf.gz", tmp_path)
     vcz2 = convert_vcf_to_vcz("alleles-2.vcf.gz", tmp_path)
 
-    append(vcz1, vcz2)
+    append_harmonise(vcz1, vcz2)
 
     # check equivalence with original VCF
     compare_vcf_and_vcz(
