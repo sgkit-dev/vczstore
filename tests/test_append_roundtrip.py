@@ -5,7 +5,7 @@ import zarr
 from bio2zarr import vcf
 from vcztools.vcf_writer import dims
 
-from vczstore.zarr_impl import append
+from vczstore.zarr_impl import append_harmonise
 
 from .utils import (
     compare_vcf_and_vcz,
@@ -55,7 +55,7 @@ def test_split_append_roundtrip(tmp_path, vcf_file):
     # append them all together
     store = single_sample_vczs[0]
     for vcz in single_sample_vczs[1:]:
-        append(store, vcz)
+        append_harmonise(store, vcz)
 
     # check that it has same shapes as the VCZ converted from original
     root_original = zarr.open(vcz_trimmed)
