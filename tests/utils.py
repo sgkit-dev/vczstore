@@ -227,7 +227,7 @@ def vcz_path_cache(vcf_path):
 
 
 def convert_vcf_to_vcz(
-    vcf_name, tmpdir, variants_chunk_size=None, samples_chunk_size=None
+    vcf_name, tmpdir, variants_chunk_size=None, samples_chunk_size=None, ploidy=None
 ):
     vcf_path = pathlib.Path("tests/data/vcf") / vcf_name
     output = (pathlib.Path(tmpdir) / vcf_path.name).with_suffix(".vcz")
@@ -238,6 +238,7 @@ def convert_vcf_to_vcz(
         samples_chunk_size=samples_chunk_size,
         worker_processes=0,
         local_alleles=False,
+        ploidy=ploidy,
     )
     return output
 

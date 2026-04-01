@@ -15,6 +15,13 @@
 #  -S <(bcftools query -l tests/data/vcf/chr22.vcf.gz | tail -45) \
 #  tests/data/vcf/chr22.vcf.gz --write-index=csi -o tests/data/vcf/chr22-part2.vcf.gz
 
+# Create a variants list VCF with no samples.
+# Note that the header contains FORMAT fields, even though there are no samples,
+# which is necessary for vc2zarr to create empty arrays.
+
+# bin/vcf-drop-samples.sh tests/data/vcf/sample.vcf.gz \
+#  tests/data/vcf/sample-variants.vcf.gz
+
 
 import pytest
 import zarr
@@ -50,6 +57,26 @@ def test_append(tmp_path, samples_chunk_size):
     # check equivalence with original VCF
     compare_vcf_and_vcz(
         tmp_path, "view --no-version", "sample.vcf.gz", "view --no-version", vcz1
+    )
+
+
+def test_append_from_variants_list(tmp_path):
+    vcz0 = convert_vcf_to_vcz("sample-variants.vcf.gz", tmp_path, ploidy=2)
+    vcz1 = convert_vcf_to_vcz("sample-part1.vcf.gz", tmp_path)
+
+    # check samples query
+    vcztools_out, _ = run_vcztools(f"query -l {vcz0}")
+    assert vcztools_out.strip() == ""
+
+    append(vcz0, vcz1)
+
+    # check samples query
+    vcztools_out, _ = run_vcztools(f"query -l {vcz0}")
+    assert vcztools_out.strip() == "NA00001\nNA00002"
+
+    # check equivalence with original VCF
+    compare_vcf_and_vcz(
+        tmp_path, "view --no-version", "sample-part1.vcf.gz", "view --no-version", vcz0
     )
 
 
