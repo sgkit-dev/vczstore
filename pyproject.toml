@@ -9,7 +9,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "vczstore-poc"
-description = "Library for a VCF Zarr store"
+description = "Tools for managing a VCF Zarr store"
 readme = "README.md"
 license = "Apache-2.0"
 authors = [

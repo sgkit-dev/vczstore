@@ -19,10 +19,13 @@ from .utils import (
 )
 
 
-def test_append(tmp_path):
+@pytest.mark.parametrize("samples_chunk_size", [1, 2, 4])
+def test_append(tmp_path, samples_chunk_size):
     print(tmp_path)
 
-    vcz1 = convert_vcf_to_vcz("sample-part1.vcf.gz", tmp_path)
+    vcz1 = convert_vcf_to_vcz(
+        "sample-part1.vcf.gz", tmp_path, samples_chunk_size=samples_chunk_size
+    )
     vcz2 = convert_vcf_to_vcz("sample-part2.vcf.gz", tmp_path)
 
     # check samples query
