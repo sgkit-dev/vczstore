@@ -1,35 +1,47 @@
 # vczstore
 
-Initial experiments to try different technologies for a vczstore POC.
+Tools for managing a VCF Zarr store.
 
-### Operations
+### Introduction
 
-The key operations we want to support are:
+The [VCF Zarr format](https://github.com/sgkit-dev/vcf-zarr-spec/) enables efficient, scalable storage and analysis of large-scale genetic variation data.
 
-* Append to a Zarr store (atomically)
-* Remove values from a Zarr store (atomically)
-* Tag a Zarr store
+VCF Zarr files can be created using [bio2zarr](https://sgkit-dev.github.io/bio2zarr/intro.html). While ideal for one-off conversion of VCF files to Zarr, bio2zarr does not support updating a VCF Zarr store with new samples.
 
-### Support matrix
+Vczstore solves the update use case by providing the following operations
+1. **Append** new samples to a Zarr store
+2. **Remove** samples from a Zarr store
 
-Using zarr-python directly (single machine)
+The append operation works by appending a VCF Zarr file to the store (which is another VCF Zarr). The file being appended is created using bio2zarr.
 
-| zarr-python (format) | v3 (v2)            | v3 (v3)            |
+### Variant sets
+
+Note that only new _samples_ can be added - not new variants - so the store contains a fixed set of variants that must be known before it is created. This is usually not a limitation since the samples come from the same genotype array, or even from the same reference panel for imputed data.
+
+If the source VCFs have different (but typically overlapping) sets of variants, then they need to be harmonised with the full set of variants before being converted to VCF Zarr. This can be accomplished using bcftools merge or similar tools - it is not performed by vczstore itself.
+
+The append operation will perform a check that the contig, position and allele (REF and ALT) fields all match before performing the update. It will fail if there is a mismatch, so samples with inconsistent variant sets cannot be appended. The check is strict - allele ordering must match exactly too.
+
+Multiallelic sites, and split alleles (mutiple records for a site) are both accepted, as long as the ordering is consistent for all source VCFs. 
+
+### Implementation
+
+The implementation uses zarr-python (version 3) directly to update Zarr chunks in the store. Stores using Zarr format 2 and 3 are supported, as well as Icechunk storage. Using Icechunk means that updates are performed in a transaction so that other users accessing the store will see consistent updates.
+
+| zarr-python (format) | v2                 | v3                 |
 |----------------------|--------------------|--------------------|
 | **no transactions**  | :white_check_mark: | :white_check_mark: |
 | **icechunk**         | N/A                | :white_check_mark: |
 
-In addition the following things are missing or not yet supported:
+VCF Zarr stores can reside in cloud stores such as Amazon S3 or Azure Cloud Storage.
 
-* Error checking (e.g. that the store and the vcz being appended have compatible fields)
-* Allele harmonisation
-* Cloud stores
+There is a multiple process implementation (like bio2zarr's [distributed implementation](https://sgkit-dev.github.io/bio2zarr/vcf2zarr/tutorial.html#large-dataset)) for running on large datasets.
 
 ### Demo
 
 * Transactions: none
 * Distributed: single process
-* Zarr: v3, format 2
+* Zarr: format 2
 
 ```shell
 % uv sync --group dev
@@ -37,7 +49,7 @@ In addition the following things are missing or not yet supported:
 # Create some VCZ data
 % rm -rf data
 % mkdir data
-% uv run vcf2zarr convert --no-progress tests/data/vcf/sample-part1.vcf.gz data/store.vcz
+% uv run vcf2zarr convert --no-progress --samples-chunk-size=4 tests/data/vcf/sample-part1.vcf.gz data/store.vcz
 % uv run vcf2zarr convert --no-progress tests/data/vcf/sample-part2.vcf.gz data/sample-part2.vcf.vcz
 
 # Show the samples in each
@@ -63,7 +75,7 @@ NA00003
 
 * Transactions: icechunk
 * Distributed: single process
-* Zarr: v3, format 3
+* Zarr: format 3
 
 ```shell
 % uv sync --extra icechunk
@@ -71,7 +83,7 @@ NA00003
 # Create some VCZ data
 % rm -rf data
 % mkdir data
-% BIO2ZARR_ZARR_FORMAT=3 uv run vcf2zarr convert --no-progress tests/data/vcf/sample-part1.vcf.gz data/sample-part1.vcf.vcz
+% BIO2ZARR_ZARR_FORMAT=3 uv run vcf2zarr convert --no-progress --samples-chunk-size=4 tests/data/vcf/sample-part1.vcf.gz data/sample-part1.vcf.vcz
 % BIO2ZARR_ZARR_FORMAT=3 uv run vcf2zarr convert --no-progress tests/data/vcf/sample-part2.vcf.gz data/sample-part2.vcf.vcz
 
 # Copy first vcz to an icechunk store
@@ -101,7 +113,7 @@ NA00003
 
 * Transactions: none
 * Distributed: multiple processes
-* Zarr: v3, format 2
+* Zarr: format 2
 
 ```shell
 % uv sync --group dev
@@ -109,7 +121,7 @@ NA00003
 # Create some VCZ data
 % rm -rf data
 % mkdir data
-% uv run vcf2zarr convert --no-progress --variants-chunk-size=10 tests/data/vcf/chr22.vcf.gz data/store.vcz
+% uv run vcf2zarr convert --no-progress --variants-chunk-size=10 --samples-chunk-size=4 tests/data/vcf/chr22.vcf.gz data/store.vcz
 
 # Show the samples in the store
 % uv run vcztools query -l data/store.vcz | wc -l
