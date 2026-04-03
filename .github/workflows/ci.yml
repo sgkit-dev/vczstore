@@ -144,7 +144,7 @@ jobs:
           uv sync --locked --group test --no-default-groups
 
       - name: Install icechunk
-        if: matrix.icechunk == "Y"
+        if: matrix.icechunk == 'Y'
         run: |
           uv sync --extra icechunk
 
