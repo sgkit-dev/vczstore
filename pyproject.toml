@@ -44,6 +44,9 @@ repository = "https://github.com/sgkit-dev/vczstore-poc"
 [project.scripts]
 vczstore = "vczstore.cli:vczstore_main"
 
+[project.optional-dependencies]
+icechunk = ["hypothesis", "icechunk"]
+
 [dependency-groups]
 test = [
   "bio2zarr @ git+https://github.com/sgkit-dev/bio2zarr.git",
