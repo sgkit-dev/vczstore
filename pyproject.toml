@@ -11,7 +11,7 @@ build-backend = "setuptools.build_meta"
 name = "vczstore-poc"
 description = "Library for a VCF Zarr store"
 readme = "README.md"
-license = {file = "LICENSE"}
+license = "Apache-2.0"
 authors = [
   {name = "sgkit Developers", email = "project@sgkit.dev"},
 ]
@@ -23,8 +23,7 @@ dependencies = [
 ]
 requires-python = ">=3.11"
 classifiers = [
-  "Development Status :: 3 - Aplha",
-  "License :: OSI Approved :: Apache Software License",
+  "Development Status :: 3 - Alpha",
   "Operating System :: POSIX",
   "Operating System :: POSIX :: Linux",
   "Operating System :: MacOS",
@@ -34,6 +33,7 @@ classifiers = [
   "Programming Language :: Python :: 3",
   "Programming Language :: Python :: 3.11",
   "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
   "Topic :: Scientific/Engineering"
 ]
 dynamic = ["version"]
@@ -44,18 +44,40 @@ repository = "https://github.com/sgkit-dev/vczstore-poc"
 [project.scripts]
 vczstore = "vczstore.cli:vczstore_main"
 
-[project.optional-dependencies]
-dev = [
+[dependency-groups]
+test = [
   "bio2zarr @ git+https://github.com/sgkit-dev/bio2zarr.git",
   "cyvcf2",
   "pytest",
+  "pytest-cov",
+]
+
+lint = [
+  "ruff==0.15.1",
+  "prek==0.3.3",
+]
+
+packaging = [
+  "twine",
+  "validate-pyproject[all]",
+]
+
+dev = [
+  {include-group = "test"},
+  {include-group = "lint"},
+  {include-group = "packaging"},
 ]
 
 [tool.setuptools]
 packages = ["vczstore"]
 
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "--cov=vczstore --cov-report=term-missing"
+
 [tool.setuptools_scm]
 write_to = "vczstore/_version.py"
+local_scheme = "no-local-version"
 
 [tool.ruff]
 # Assume Python 3.11
@@ -77,6 +99,7 @@ unfixable = []
 [tool.ruff.lint.isort]
 known-third-party = [
   "bio2zarr",
+  "click",
   "cyvcf2",
   "numpy",
   "pytest",
