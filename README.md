@@ -35,7 +35,7 @@ The implementation uses zarr-python (version 3) directly to update Zarr chunks i
 
 VCF Zarr stores can reside in cloud stores such as Amazon S3 or Azure Cloud Storage.
 
-There is a multiple process implementation (like bio2zarr's [distributed implementation](https://sgkit-dev.github.io/bio2zarr/vcf2zarr/tutorial.html#large-dataset)) for running on large datasets.
+There is a multiple process implementation (like bio2zarr's [distributed implementation](https://sgkit-dev.github.io/bio2zarr/vcf2zarr/tutorial.html#large-dataset)) for running on large datasets. See below for an example.
 
 ### Demo
 
@@ -121,9 +121,19 @@ NA00003
 # Create some VCZ data
 % rm -rf data
 % mkdir data
-% uv run vcf2zarr convert --no-progress --variants-chunk-size=10 --samples-chunk-size=4 tests/data/vcf/chr22.vcf.gz data/store.vcz
+% uv run vcf2zarr convert --no-progress --variants-chunk-size=10 --samples-chunk-size=50 tests/data/vcf/chr22-part1.vcf.gz data/store.vcz
+% uv run vcf2zarr convert --no-progress --variants-chunk-size=10 --samples-chunk-size=50 tests/data/vcf/chr22-part2.vcf.gz data/chr22-part2.vcf.vcz
 
-# Show the samples in the store
+# Show the number of samples in each
+% uv run vcztools query -l data/store.vcz | wc -l
+55
+% uv run vcztools query -l data/chr22-part2.vcf.vcz | wc -l
+45
+
+# Append data to the store using 3 processes
+% uv run vczstore dappend-init data/store.vcz data/chr22-part2.vcf.vcz -n 3
+% parallel -j 3 uv run vczstore dappend-partition data/store.vcz data/chr22-part2.vcf.vcz {} ::: $(seq 0 2)
+% uv run vczstore dappend-finalise data/store.vcz data/chr22-part2.vcf.vcz
 % uv run vcztools query -l data/store.vcz | wc -l
 100
 

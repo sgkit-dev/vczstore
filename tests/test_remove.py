@@ -14,8 +14,6 @@ from .utils import (
 
 
 def test_remove(tmp_path):
-    print(tmp_path)
-
     vcz = convert_vcf_to_vcz("sample.vcf.gz", tmp_path)
 
     # check samples query
@@ -46,8 +44,6 @@ def test_remove_icechunk(tmp_path):
     from icechunk import Repository
 
     from vczstore.icechunk_utils import delete_previous_snapshots, make_icechunk_storage
-
-    print(tmp_path)
 
     vcz = convert_vcf_to_vcz_icechunk("sample.vcf.gz", tmp_path)
 
@@ -94,8 +90,6 @@ def test_remove_icechunk(tmp_path):
 
 
 def test_remove_partitioned(tmp_path):
-    print(tmp_path)
-
     vcz = convert_vcf_to_vcz("chr22.vcf.gz", tmp_path, variants_chunk_size=10)
 
     # check samples query

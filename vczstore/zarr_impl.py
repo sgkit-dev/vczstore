@@ -42,7 +42,6 @@ def append(vcz1, vcz2):
     sample_id1[old_num_samples:new_num_samples] = sample_id2[:]
 
     # append genotype fields
-
     for var in root1.keys():
         if var.startswith("call_"):
             arr = root1[var]

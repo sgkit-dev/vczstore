@@ -83,6 +83,47 @@ def remove(vcz, sample_id, impl, zarr_backend_storage):
 
 
 @click.command()
+@click.argument("vcz1", type=click.Path())
+@click.argument("vcz2", type=click.Path())
+@num_partitions
+def dappend_init(vcz1, vcz2, num_partitions):
+    """
+    Initial step for distributed append of vcz2 to vcz1 in place.
+    """
+    from vczstore.zarr_partition_impl import append_init
+
+    append_init(vcz1, vcz2, num_partitions)
+
+
+@click.command()
+@click.argument("vcz1", type=click.Path())
+@click.argument("vcz2", type=click.Path())
+@partition
+def dappend_partition(vcz1, vcz2, partition):
+    """
+    Append vcz2 to vcz1 in place for a partition.
+
+    Must be called after the distributed append operation has been
+    initialised with dappend_init.
+    """
+    from vczstore.zarr_partition_impl import append_partition
+
+    append_partition(vcz1, vcz2, partition)
+
+
+@click.command()
+@click.argument("vcz1", type=click.Path())
+@click.argument("vcz2", type=click.Path())
+def dappend_finalise(vcz1, vcz2):
+    """
+    Final step for distributed append of vcz2 to vcz1 in place.
+    """
+    from vczstore.zarr_partition_impl import append_finalise
+
+    append_finalise(vcz1, vcz2)
+
+
+@click.command()
 @click.argument("vcz", type=click.Path())
 @click.argument("sample_id", type=str)
 @num_partitions
@@ -141,6 +182,9 @@ def vczstore_main():
 vczstore_main.add_command(append)
 vczstore_main.add_command(remove)
 vczstore_main.add_command(copy_store_to_icechunk)
+vczstore_main.add_command(dappend_init)
+vczstore_main.add_command(dappend_partition)
+vczstore_main.add_command(dappend_finalise)
 vczstore_main.add_command(dremove_init)
 vczstore_main.add_command(dremove_partition)
 vczstore_main.add_command(dremove_finalise)
