@@ -7,7 +7,7 @@ We use [uv](https://docs.astral.sh/uv/) for dependency management.
 Clone the repository and install all development dependencies:
 
 ```bash
-git clone https://github.com/tomwhite/vczstore.git
+git clone https://github.com/sgkit-dev/vczstore.git
 cd vczstore
 uv sync --group dev
 ```
