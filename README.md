@@ -34,6 +34,10 @@ The implementation uses zarr-python (version 3) directly to update Zarr chunks i
 | **icechunk**         | N/A                | :white_check_mark: |
 
 VCF Zarr stores can reside in cloud stores such as Amazon S3 or Azure Cloud Storage.
+For Icechunk-backed stores, local filesystem paths plus `s3://`, `az://`,
+`azure://`, `abfs://`, `abfss://`, and Azure
+`https://...blob.core.windows.net/...` or `https://...dfs.core.windows.net/...`
+URLs are supported.
 
 There is a multiple process implementation (like bio2zarr's [distributed implementation](https://sgkit-dev.github.io/bio2zarr/vcf2zarr/tutorial.html#large-dataset)) for running on large datasets. See below for an example.
 
