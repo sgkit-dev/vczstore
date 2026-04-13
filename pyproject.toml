@@ -49,6 +49,7 @@ icechunk = ["hypothesis", "icechunk"]
 
 [dependency-groups]
 test = [
+  "azure-storage-blob",
   "bio2zarr @ git+https://github.com/sgkit-dev/bio2zarr.git",
   "cyvcf2",
   "pytest",
