@@ -101,6 +101,30 @@ def test_append_fail_alleles_mismatch(tmp_path):
         append(vcz1, vcz2)
 
 
+def test_append_multiple_chunks(tmp_path):
+    vcz1 = convert_vcf_to_vcz(
+        "chr22-part1.vcf.gz", tmp_path, variants_chunk_size=10, samples_chunk_size=50
+    )
+    vcz2 = convert_vcf_to_vcz(
+        "chr22-part2.vcf.gz", tmp_path, variants_chunk_size=10, samples_chunk_size=50
+    )
+
+    # check samples query
+    vcztools_out, _ = run_vcztools(f"query -l {vcz1}")
+    assert len(vcztools_out.strip().split("\n")) == 55
+
+    append(vcz1, vcz2)
+
+    # check samples query
+    vcztools_out, _ = run_vcztools(f"query -l {vcz1}")
+    assert len(vcztools_out.strip().split("\n")) == 100
+
+    # check equivalence with original VCF
+    compare_vcf_and_vcz(
+        tmp_path, "view --no-version", "chr22.vcf.gz", "view --no-version", vcz1
+    )
+
+
 def test_append_icechunk(tmp_path):
     pytest.importorskip("icechunk")
     from vczstore.icechunk_utils import icechunk_transaction

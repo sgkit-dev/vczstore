@@ -9,7 +9,7 @@ from vcztools.retrieval import variant_iter
 from vcztools.utils import search
 from vcztools.vcf_writer import dims
 
-from vczstore.utils import missing_val
+from vczstore.utils import missing_val, variant_chunk_slices
 
 logger = logging.getLogger(__name__)
 
@@ -45,20 +45,26 @@ def append(vcz1, vcz2):
     sample_id1.resize(new_shape)
     sample_id1[old_num_samples:new_num_samples] = sample_id2[:]
 
-    # append genotype fields
+    # resize genotype fields
     for var in root1.keys():
         if var.startswith("call_"):
             arr = root1[var]
             if arr.ndim == 2:
                 new_shape = (arr.shape[0], new_num_samples)
                 arr.resize(new_shape)
-                arr[:, old_num_samples:new_num_samples] = root2[var][:]
             elif arr.ndim == 3:
                 new_shape = (arr.shape[0], new_num_samples, arr.shape[2])
                 arr.resize(new_shape)
-                arr[:, old_num_samples:new_num_samples, :] = root2[var][:]
             else:
                 raise ValueError("unsupported number of dims")
+
+    # append genotype fields
+    for variant_selection in variant_chunk_slices(root1):
+        for var in root1.keys():
+            if var.startswith("call_"):
+                root1[var][variant_selection, old_num_samples:new_num_samples, ...] = (
+                    root2[var][variant_selection, ...]
+                )
 
 
 def remove(vcz, sample_id):
@@ -70,18 +76,19 @@ def remove(vcz, sample_id):
     unknown_samples = np.setdiff1d(sample_id, all_samples)
     if len(unknown_samples) > 0:
         raise ValueError(f"unrecognised sample: {sample_id}")
-    selection = search(all_samples, sample_id)
+    sample_selection = search(all_samples, sample_id)
 
     # overwrite sample data
-    root["sample_id"][selection] = ""
-    for var in root.keys():
-        arr = root[var]
-        if (
-            var.startswith("call_")
-            and dims(arr)[0] == "variants"
-            and dims(arr)[1] == "samples"
-        ):
-            root[var][:, selection, ...] = missing_val(arr)
+    root["sample_id"][sample_selection] = ""
+    for variant_selection in variant_chunk_slices(root):
+        for var in root.keys():
+            arr = root[var]
+            if (
+                var.startswith("call_")
+                and dims(arr)[0] == "variants"
+                and dims(arr)[1] == "samples"
+            ):
+                arr[variant_selection, sample_selection, ...] = missing_val(arr)
 
 
 def normalise(vcz1, vcz2, vcz2_norm):

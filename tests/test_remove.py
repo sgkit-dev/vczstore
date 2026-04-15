@@ -37,6 +37,34 @@ def test_remove(tmp_path):
     check_removed_sample(vcz, "NA00002")
 
 
+def test_remove_multiple_chunks(tmp_path):
+    vcz = convert_vcf_to_vcz("chr22.vcf.gz", tmp_path, variants_chunk_size=10)
+
+    # check samples query
+    vcztools_out, _ = run_vcztools(f"query -l {vcz}")
+    assert len(vcztools_out.strip().split("\n")) == 100
+
+    remove(vcz, "HG00100")
+
+    # check samples query
+    vcztools_out, _ = run_vcztools(f"query -l {vcz}")
+    assert "HG00100" not in vcztools_out
+    assert len(vcztools_out.strip().split("\n")) == 99
+
+    # check equivalence with original VCF (with sample subsetting)
+    reduced_samples = ",".join(vcztools_out.strip().split("\n"))
+    compare_vcf_and_vcz(
+        tmp_path,
+        f"view --no-version -s {reduced_samples}",
+        "chr22.vcf.gz",
+        "view --no-version",
+        vcz,
+    )
+
+    # check sample values are missing
+    check_removed_sample(vcz, "HG00100")
+
+
 def test_remove_icechunk(tmp_path):
     pytest.importorskip("icechunk")
     from icechunk import Repository

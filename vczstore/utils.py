@@ -17,6 +17,18 @@ def missing_val(arr):
         raise ValueError(f"unrecognised dtype: {arr.dtype}")
 
 
+def variant_chunk_slices(root):
+    """A generator returning chunk slices along the variants dimension."""
+    pos = root["variant_position"]
+    size = pos.shape[0]
+    v_chunksize = pos.chunks[0]
+    num_chunks = pos.cdata_shape[0]
+    for v_chunk in range(num_chunks):
+        start = v_chunksize * v_chunk
+        end = min(v_chunksize * (v_chunk + 1), size)
+        yield slice(start, end)
+
+
 def merge_lists(l1: list, l2: list, *, key: Callable[[Any], Any] = lambda x: x) -> list:
     """Merge two lists preserving the relative order of elements from both inputs.
 
