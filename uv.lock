@@ -52,8 +52,8 @@ wheels = [
 
 [[package]]
 name = "bio2zarr"
-version = "0.1.9.dev36"
-source = { git = "https://github.com/sgkit-dev/bio2zarr.git#52504460f32b345eb482cabd938dae5ed2c535e2" }
+version = "0.2.0"
+source = { git = "https://github.com/sgkit-dev/bio2zarr.git#fb26d23d1f091a6a7f85773de0ceadf80fe8a332" }
 dependencies = [
     { name = "click" },
     { name = "coloredlogs" },
@@ -1548,6 +1548,7 @@ all = [
 name = "vczstore"
 source = { editable = "." }
 dependencies = [
+    { name = "bio2zarr" },
     { name = "click" },
     { name = "more-itertools" },
     { name = "numpy" },
@@ -1565,7 +1566,6 @@ icechunk = [
 [package.dev-dependencies]
 dev = [
     { name = "azure-storage-blob" },
-    { name = "bio2zarr" },
     { name = "cyvcf2" },
     { name = "prek" },
     { name = "pytest" },
@@ -1584,7 +1584,6 @@ packaging = [
 ]
 test = [
     { name = "azure-storage-blob" },
-    { name = "bio2zarr" },
     { name = "cyvcf2" },
     { name = "pytest" },
     { name = "pytest-cov" },
@@ -1592,6 +1591,7 @@ test = [
 
 [package.metadata]
 requires-dist = [
+    { name = "bio2zarr", git = "https://github.com/sgkit-dev/bio2zarr.git" },
     { name = "click", specifier = ">=8.2.0" },
     { name = "hypothesis", marker = "extra == 'icechunk'" },
     { name = "icechunk", marker = "extra == 'icechunk'" },
@@ -1605,7 +1605,6 @@ provides-extras = ["icechunk"]
 [package.metadata.requires-dev]
 dev = [
     { name = "azure-storage-blob" },
-    { name = "bio2zarr", git = "https://github.com/sgkit-dev/bio2zarr.git" },
     { name = "cyvcf2" },
     { name = "prek", specifier = "==0.3.3" },
     { name = "pytest" },
@@ -1624,7 +1623,6 @@ packaging = [
 ]
 test = [
     { name = "azure-storage-blob" },
-    { name = "bio2zarr", git = "https://github.com/sgkit-dev/bio2zarr.git" },
     { name = "cyvcf2" },
     { name = "pytest" },
     { name = "pytest-cov" },
