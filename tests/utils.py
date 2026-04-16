@@ -12,7 +12,7 @@ import numpy as np
 import vcztools.cli as cli
 import zarr
 from bio2zarr import vcf
-from vcztools.vcf_writer import dims
+from vcztools.utils import array_dims
 
 from vczstore.utils import missing_val
 
@@ -318,8 +318,8 @@ def check_removed_sample(vcz, sample_id):
         arr = root[var]
         if (
             var.startswith("call_")
-            and dims(arr)[0] == "variants"
-            and dims(arr)[1] == "samples"
+            and array_dims(arr)[0] == "variants"
+            and array_dims(arr)[1] == "samples"
         ):
             np.testing.assert_array_equal(
                 root[var][:][:, selection, ...], missing_val(arr)

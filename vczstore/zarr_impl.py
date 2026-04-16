@@ -6,8 +6,7 @@ from bio2zarr.zarr_utils import create_group_array, get_compressor_config
 from more_itertools import peekable
 from vcztools.constants import STR_FILL, STR_MISSING
 from vcztools.retrieval import variant_iter
-from vcztools.utils import search
-from vcztools.vcf_writer import dims
+from vcztools.utils import array_dims, search
 
 from vczstore.utils import missing_val, variant_chunk_slices
 
@@ -56,7 +55,7 @@ def append(vcz1, vcz2):
                 new_shape = (arr.shape[0], new_num_samples, arr.shape[2])
                 arr.resize(new_shape)
             else:
-                raise ValueError("unsupported number of dims")
+                raise ValueError("unsupported number of array_dims")
 
     # append genotype fields
     for variant_selection in variant_chunk_slices(root1):
@@ -85,8 +84,8 @@ def remove(vcz, sample_id):
             arr = root[var]
             if (
                 var.startswith("call_")
-                and dims(arr)[0] == "variants"
-                and dims(arr)[1] == "samples"
+                and array_dims(arr)[0] == "variants"
+                and array_dims(arr)[1] == "samples"
             ):
                 arr[variant_selection, sample_selection, ...] = missing_val(arr)
 
@@ -118,7 +117,7 @@ def normalise(vcz1, vcz2, vcz2_norm):
                 dtype=data.dtype,
                 compressor=get_compressor_config(arr),
                 chunks=chunks,
-                dimension_names=dims(arr),
+                dimension_names=array_dims(arr),
             )
         else:
             # copy across from vcz1 or vcz2
@@ -134,7 +133,7 @@ def normalise(vcz1, vcz2, vcz2_norm):
                 dtype=arr.dtype,
                 compressor=get_compressor_config(arr),
                 chunks=arr.chunks,
-                dimension_names=dims(arr),
+                dimension_names=array_dims(arr),
             )
 
 
