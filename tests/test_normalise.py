@@ -13,15 +13,29 @@ from .utils import compare_vcf_and_vcz, convert_vcf_to_vcz
 def create_variant_only_vcz(variant_contig, variant_position, variant_allele):
     store = zarr.storage.MemoryStore()
     root = zarr.create_group(store=store)
-    root.create_array(name="contig_id", data=np.unique(variant_contig).astype(str))
     root.create_array(
-        name="variant_contig", data=np.array(variant_contig, dtype=np.int32)
+        name="contig_id",
+        data=np.unique(variant_contig).astype(str),
+        dimension_names=["contigs"],
     )
     root.create_array(
-        name="variant_position", data=np.array(variant_position, dtype=np.int32)
+        name="variant_contig",
+        data=np.array(variant_contig, dtype=np.int32),
+        dimension_names=["variants"],
     )
-    root.create_array(name="variant_allele", data=np.array(variant_allele, dtype="T"))
-    root.create_array(name="sample_id", data=np.array([], dtype="T"))
+    root.create_array(
+        name="variant_position",
+        data=np.array(variant_position, dtype=np.int32),
+        dimension_names=["variants"],
+    )
+    root.create_array(
+        name="variant_allele",
+        data=np.array(variant_allele, dtype="T"),
+        dimension_names=["variants", "alleles"],
+    )
+    root.create_array(
+        name="sample_id", data=np.array([], dtype="T"), dimension_names=["samples"]
+    )
     return store
 
 
