@@ -40,7 +40,8 @@ zarr_backend_storage = click.option(
     "--zarr-backend-storage",
     type=click.Choice(["fsspec", "icechunk"]),
     default=None,
-    help="Zarr backend storage to use; one of 'fsspec' (default) or 'icechunk'.",
+    help="Zarr backend storage to use; one of 'fsspec' (default), 'obstore', "
+    "or 'icechunk'.",
 )
 
 
@@ -78,6 +79,7 @@ def append(vcz1, vcz2, zarr_backend_storage, io_concurrency, require_direct_copy
             vcz2,
             io_concurrency=io_concurrency,
             require_direct_copy=require_direct_copy,
+            zarr_backend_storage=zarr_backend_storage,
         )
 
 
@@ -88,7 +90,14 @@ def append(vcz1, vcz2, zarr_backend_storage, io_concurrency, require_direct_copy
 @progress
 def normalise(vcz1, vcz2, vcz2_norm, progress):
     """Normalise variants in vcz2 with respect to vcz1 and write to vcz2_norm"""
-    call_or_error(normalise_function, vcz1, vcz2, vcz2_norm, show_progress=progress)
+    call_or_error(
+        normalise_function,
+        vcz1,
+        vcz2,
+        vcz2_norm,
+        show_progress=progress,
+        zarr_backend_storage=zarr_backend_storage,
+    )
 
 
 @click.command()
@@ -105,7 +114,13 @@ def remove(vcz, sample_id, progress, zarr_backend_storage):
     else:
         cm = nullcontext(vcz)
     with cm as vcz:
-        call_or_error(remove_function, vcz, sample_id, show_progress=progress)
+        call_or_error(
+            remove_function,
+            vcz,
+            sample_id,
+            show_progress=progress,
+            zarr_backend_storage=zarr_backend_storage,
+        )
 
 
 @click.command()
