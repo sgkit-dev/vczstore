@@ -6,7 +6,7 @@ from itertools import product
 
 import numpy as np
 import zarr
-from vcztools.utils import array_dims
+from vcztools.utils import array_dims, open_zarr
 from zarr.core.sync import sync
 
 logger = logging.getLogger(__name__)
@@ -129,14 +129,14 @@ async def _copy_encoded_chunks(
         raise
 
 
-def append(vcz1, vcz2, *, io_concurrency=None, require_direct_copy=False):
+def append(vcz1, vcz2, *, io_concurrency=None, require_direct_copy=False, zarr_backend_storage=None):
     """Append vcz2 to vcz1 in place"""
     if io_concurrency is None:
         io_concurrency = (os.cpu_count() or 1) * 4
     if io_concurrency < 1:
         raise ValueError("io_concurrency must be greater than or equal to 1")
-    root1 = zarr.open(vcz1, mode="r+")
-    root2 = zarr.open(vcz2, mode="r")
+    root1 = open_zarr(vcz1, mode="r+", zarr_backend_storage=zarr_backend_storage)
+    root2 = zarr.open(vcz2, mode="r")  # assume local
 
     # check preconditions
     n_variants1 = root1["variant_contig"].shape[0]

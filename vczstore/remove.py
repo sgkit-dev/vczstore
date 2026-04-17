@@ -1,8 +1,7 @@
 import logging
 
 import numpy as np
-import zarr
-from vcztools.utils import array_dims, search
+from vcztools.utils import array_dims, open_zarr, search
 
 from vczstore.utils import missing_val, variant_chunk_slices, variants_progress
 
@@ -28,9 +27,9 @@ def _assert_variant_chunk_alignment(arrays, *, variant_chunk_size, operation):
             )
 
 
-def remove(vcz, sample_id, *, show_progress=False):
+def remove(vcz, sample_id, *, show_progress=False, zarr_backend_storage=None):
     """Remove a sample from vcz and overwrite with missing data"""
-    root = zarr.open(vcz, mode="r+")
+    root = open_zarr(vcz, mode="r+", zarr_backend_storage=zarr_backend_storage)
     n_variants = root["variant_contig"].shape[0]
     all_samples = root["sample_id"][:]
 
