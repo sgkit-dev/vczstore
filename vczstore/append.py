@@ -2,7 +2,7 @@ import logging
 
 import numpy as np
 import zarr
-from vcztools.utils import array_dims
+from vcztools.utils import array_dims, open_zarr
 
 from vczstore.utils import variant_chunk_slices, variants_progress
 
@@ -46,10 +46,10 @@ def _assert_append_arrays_compatible(name, arr1, arr2):
         )
 
 
-def append(vcz1, vcz2, *, show_progress=False):
+def append(vcz1, vcz2, *, show_progress=False, zarr_backend_storage=None):
     """Append vcz2 to vcz1 in place"""
-    root1 = zarr.open(vcz1, mode="r+")
-    root2 = zarr.open(vcz2, mode="r")
+    root1 = open_zarr(vcz1, mode="r+", zarr_backend_storage=zarr_backend_storage)
+    root2 = zarr.open(vcz2, mode="r")  # assume local
 
     # check preconditions
     n_variants1 = root1["variant_contig"].shape[0]
