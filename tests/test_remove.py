@@ -1,6 +1,6 @@
 import pytest
 
-from vczstore.zarr_impl import remove
+from vczstore.remove import remove
 
 from .utils import (
     check_removed_sample,

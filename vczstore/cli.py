@@ -2,9 +2,9 @@ from contextlib import nullcontext
 
 import click
 
+from vczstore.append import append as append_function
 from vczstore.normalise import normalise as normalise_function
-from vczstore.zarr_impl import append as append_function
-from vczstore.zarr_impl import remove as remove_function
+from vczstore.remove import remove as remove_function
 
 
 class NaturalOrderGroup(click.Group):

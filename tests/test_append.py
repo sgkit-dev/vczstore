@@ -25,7 +25,7 @@
 
 import pytest
 
-from vczstore.zarr_impl import append
+from vczstore.append import append
 
 from .utils import (
     compare_vcf_and_vcz,

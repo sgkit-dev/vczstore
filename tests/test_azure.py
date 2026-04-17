@@ -10,12 +10,12 @@ import numpy as np
 import pytest
 import zarr
 
+from vczstore.append import append
 from vczstore.icechunk_utils import (
     copy_store_to_icechunk,
     icechunk_transaction,
     make_icechunk_storage,
 )
-from vczstore.zarr_impl import append
 
 icechunk = pytest.importorskip("icechunk")
 from icechunk import Repository  # noqa E402
