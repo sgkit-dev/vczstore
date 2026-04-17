@@ -2,6 +2,10 @@ from contextlib import nullcontext
 
 import click
 
+from vczstore.normalise import normalise as normalise_function
+from vczstore.zarr_impl import append as append_function
+from vczstore.zarr_impl import remove as remove_function
+
 
 class NaturalOrderGroup(click.Group):
     """
@@ -17,14 +21,6 @@ def show_work_summary(work_summary):
     click.echo(output)
 
 
-impl = click.option(
-    "-i",
-    "--impl",
-    type=str,
-    default=None,
-    help="Implementation to use; currently only 'zarr' (default).",
-)
-
 zarr_backend_storage = click.option(
     "--zarr-backend-storage",
     type=str,
@@ -36,15 +32,9 @@ zarr_backend_storage = click.option(
 @click.command()
 @click.argument("vcz1", type=click.Path())
 @click.argument("vcz2", type=click.Path())
-@impl
 @zarr_backend_storage
-def append(vcz1, vcz2, impl, zarr_backend_storage):
+def append(vcz1, vcz2, zarr_backend_storage):
     """Append vcz2 to vcz1 in place"""
-    if impl is None or impl == "zarr":
-        from vczstore.zarr_impl import append as append_function
-    else:
-        raise ValueError(f"Unrecognised impl: {impl}")
-
     if zarr_backend_storage == "icechunk":
         from vczstore.icechunk_utils import icechunk_transaction
 
@@ -61,23 +51,15 @@ def append(vcz1, vcz2, impl, zarr_backend_storage):
 @click.argument("vcz2_norm", type=click.Path())
 def normalise(vcz1, vcz2, vcz2_norm):
     """Normalise variants in vcz2 with respect to vcz1 and write to vcz2_norm"""
-    from vczstore.normalise import normalise as normalise_function
-
     normalise_function(vcz1, vcz2, vcz2_norm)
 
 
 @click.command()
 @click.argument("vcz", type=click.Path())
 @click.argument("sample_id", type=str)
-@impl
 @zarr_backend_storage
-def remove(vcz, sample_id, impl, zarr_backend_storage):
+def remove(vcz, sample_id, zarr_backend_storage):
     """Remove a sample from vcz and overwrite with missing data"""
-    if impl is None or impl == "zarr":
-        from vczstore.zarr_impl import remove as remove_function
-    else:
-        raise ValueError(f"Unrecognised impl: {impl}")
-
     if zarr_backend_storage == "icechunk":
         from vczstore.icechunk_utils import icechunk_transaction
 
