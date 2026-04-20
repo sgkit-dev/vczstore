@@ -16,7 +16,7 @@ authors = [
   {name = "sgkit Developers", email = "project@sgkit.dev"},
 ]
 dependencies = [
-  "bio2zarr @ git+https://github.com/sgkit-dev/bio2zarr.git",
+  "bio2zarr",
   "click>=8.2.0",
   "more_itertools",
   "numpy>=1.23.5,<2.4",
@@ -113,3 +113,6 @@ known-third-party = [
   "vcztools",
   "zarr"
 ]
+
+[tool.uv.sources]
+bio2zarr = { path = "../bio2zarr", editable = true }

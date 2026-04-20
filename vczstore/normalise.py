@@ -1,6 +1,6 @@
 import numpy as np
 import zarr
-from bio2zarr.zarr_utils import create_empty_group_array, get_compressor
+from bio2zarr.zarr_utils import create_empty_group_array, get_compressor_config
 from more_itertools import peekable
 from vcztools.constants import STR_FILL, STR_MISSING
 from vcztools.retrieval import VczReader
@@ -51,7 +51,7 @@ def normalise(vcz1, vcz2, vcz2_norm):
                 shape=shape,
                 dtype=arr.dtype,
                 chunks=chunks,
-                compressor=get_compressor(arr),
+                compressor=get_compressor_config(arr),
                 dimension_names=array_dims(arr),
             )
         else:
@@ -66,7 +66,7 @@ def normalise(vcz1, vcz2, vcz2_norm):
                 shape=arr.shape,
                 dtype=arr.dtype,
                 chunks=arr.chunks,
-                compressor=get_compressor(arr),
+                compressor=get_compressor_config(arr),
                 dimension_names=array_dims(arr),
             )
 
