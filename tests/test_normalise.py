@@ -5,12 +5,15 @@ import pytest
 import zarr
 from numpy.testing import assert_array_equal
 
+from vczstore.append import append
 from vczstore.normalise import (
     index_variants,
     normalise,
     remap_genotypes,
     variant_alleles_are_equivalent,
 )
+
+from .utils import compare_vcf_and_vcz, convert_vcf_to_vcz
 
 
 # TODO: replace this with make_vcz in vcztools/bio2zarr
@@ -324,3 +327,18 @@ def test_normalise__other_call_fields_not_implemented():
 
     with pytest.raises(NotImplementedError):
         normalise(vcz1, vcz2, vcz2_norm)
+
+
+def test_normalise_and_append(tmp_path):
+    vcz0 = convert_vcf_to_vcz("sample-variants.vcf.gz", tmp_path, ploidy=2)
+    vcz1 = convert_vcf_to_vcz("sample-part1.vcf.gz", tmp_path)
+    vcz1_norm = zarr.storage.MemoryStore()
+
+    normalise(vcz0, vcz1, vcz1_norm)
+
+    append(vcz0, vcz1_norm)
+
+    # check equivalence with original VCF
+    compare_vcf_and_vcz(
+        tmp_path, "view --no-version", "sample-part1.vcf.gz", "view --no-version", vcz0
+    )
