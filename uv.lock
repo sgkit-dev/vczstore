@@ -52,7 +52,8 @@ wheels = [
 
 [[package]]
 name = "bio2zarr"
-source = { editable = "../bio2zarr" }
+version = "0.2.0"
+source = { git = "https://github.com/sgkit-dev/bio2zarr.git#fb26d23d1f091a6a7f85773de0ceadf80fe8a332" }
 dependencies = [
     { name = "click" },
     { name = "coloredlogs" },
@@ -62,81 +63,6 @@ dependencies = [
     { name = "tabulate" },
     { name = "tqdm" },
     { name = "zarr" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "click" },
-    { name = "coloredlogs" },
-    { name = "cyvcf2", marker = "extra == 'all'" },
-    { name = "cyvcf2", marker = "extra == 'vcf'" },
-    { name = "humanfriendly" },
-    { name = "numpy", specifier = ">=2" },
-    { name = "pandas" },
-    { name = "tabulate" },
-    { name = "tqdm" },
-    { name = "tskit", marker = "extra == 'all'", specifier = ">=1" },
-    { name = "tskit", marker = "extra == 'tskit'", specifier = ">=1" },
-    { name = "zarr", specifier = ">=3.1" },
-]
-provides-extras = ["tskit", "vcf", "all"]
-
-[package.metadata.requires-dev]
-dev = [
-    { name = "asciinema-automation" },
-    { name = "bash-kernel" },
-    { name = "bed-reader" },
-    { name = "click", specifier = ">=8.2.0" },
-    { name = "cyvcf2", marker = "sys_platform != 'win32'" },
-    { name = "dask", extras = ["array"] },
-    { name = "hypothesis-vcf" },
-    { name = "jupyter-book", specifier = "<2" },
-    { name = "msprime" },
-    { name = "prek", specifier = "==0.3.3" },
-    { name = "pysam", marker = "sys_platform != 'win32'" },
-    { name = "pytest" },
-    { name = "pytest-coverage" },
-    { name = "pytest-xdist" },
-    { name = "ruff", specifier = "==0.15.1" },
-    { name = "sphinx-click" },
-    { name = "tqdm" },
-    { name = "tskit", specifier = ">=1" },
-    { name = "twine" },
-    { name = "validate-pyproject", extras = ["all"] },
-    { name = "xarray", specifier = "<2025.3.1" },
-    { name = "zizmor", specifier = "==1.24.1" },
-]
-docs = [
-    { name = "asciinema-automation" },
-    { name = "bash-kernel" },
-    { name = "cyvcf2", marker = "sys_platform != 'win32'" },
-    { name = "jupyter-book", specifier = "<2" },
-    { name = "sphinx-click" },
-    { name = "tskit", specifier = ">=1" },
-]
-lint = [
-    { name = "prek", specifier = "==0.3.3" },
-    { name = "ruff", specifier = "==0.15.1" },
-    { name = "zizmor", specifier = "==1.24.1" },
-]
-packaging = [
-    { name = "twine" },
-    { name = "validate-pyproject", extras = ["all"] },
-]
-test = [
-    { name = "bed-reader" },
-    { name = "click", specifier = ">=8.2.0" },
-    { name = "cyvcf2", marker = "sys_platform != 'win32'" },
-    { name = "dask", extras = ["array"] },
-    { name = "hypothesis-vcf" },
-    { name = "msprime" },
-    { name = "pysam", marker = "sys_platform != 'win32'" },
-    { name = "pytest" },
-    { name = "pytest-coverage" },
-    { name = "pytest-xdist" },
-    { name = "tqdm" },
-    { name = "tskit", specifier = ">=1" },
-    { name = "xarray", specifier = "<2025.3.1" },
 ]
 
 [[package]]
@@ -1665,7 +1591,7 @@ test = [
 
 [package.metadata]
 requires-dist = [
-    { name = "bio2zarr", editable = "../bio2zarr" },
+    { name = "bio2zarr", git = "https://github.com/sgkit-dev/bio2zarr.git" },
     { name = "click", specifier = ">=8.2.0" },
     { name = "hypothesis", marker = "extra == 'icechunk'" },
     { name = "icechunk", marker = "extra == 'icechunk'" },
