@@ -35,6 +35,14 @@ def normalise(vcz1, vcz2, vcz2_norm):
         if var.startswith("call_"):
             # normalise genotype fields
             arr = root2[var]
+            for dim in array_dims(arr):
+                if dim in ("alleles", "alt_alleles", "genotypes") or dim.startswith(
+                    "local_"
+                ):
+                    raise NotImplementedError(
+                        f"Allele remapping not supported for dim {dim} in "
+                        f"variable {var}"
+                    )
             shape = (n_variants,) + arr.shape[1:]
             chunks = (variants_chunk_size,) + arr.chunks[1:]
             create_empty_group_array(

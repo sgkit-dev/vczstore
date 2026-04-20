@@ -24,6 +24,8 @@ def make_vcz(
     variants_chunk_size=None,
     samples_chunk_size=None,
     call_genotype=None,
+    call_fields=None,
+    call_field_dims=None,
     ploidy=2,
 ):
 
@@ -98,6 +100,16 @@ def make_vcz(
             compressors=None,
             filters=None,
         )
+    if call_fields is not None:
+        for name, data in call_fields.items():
+            root.create_array(
+                name=f"call_{name}",
+                data=data,
+                chunks=(v_chunk, s_chunk, data.shape[2]),
+                dimension_names=call_field_dims[name],
+                compressors=None,
+                filters=None,
+            )
     return store
 
 
@@ -289,3 +301,26 @@ def test_normalise(variants_chunk_size):
             [[0, 1]],  # remapped to vcz1 order
         ],
     )
+
+
+def test_normalise__other_call_fields_not_implemented():
+    vcz1 = make_vcz(
+        variant_contig=[0],
+        variant_position=[1],
+        alleles=[["A", "T", "G"]],
+    )
+
+    vcz2 = make_vcz(
+        variant_contig=[0],
+        variant_position=[1],
+        alleles=[["A", "G", "T"]],  # order different to vcz1
+        sample_id=["S1"],
+        call_genotype=[[[0, 2]]],
+        call_fields={"AD": np.array([[[10, -1, 20]]], dtype=np.int8)},
+        call_field_dims={"AD": ["variants", "samples", "alleles"]},
+    )
+
+    vcz2_norm = zarr.storage.MemoryStore()
+
+    with pytest.raises(NotImplementedError):
+        normalise(vcz1, vcz2, vcz2_norm)
