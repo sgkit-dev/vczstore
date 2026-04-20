@@ -52,8 +52,8 @@ wheels = [
 
 [[package]]
 name = "bio2zarr"
-version = "0.2.0"
-source = { git = "https://github.com/sgkit-dev/bio2zarr.git#fb26d23d1f091a6a7f85773de0ceadf80fe8a332" }
+version = "0.2.1.dev2"
+source = { git = "https://github.com/sgkit-dev/bio2zarr.git#4b50f8803d05ac7ea0a3fa8537cc7c9a3389493f" }
 dependencies = [
     { name = "click" },
     { name = "coloredlogs" },
