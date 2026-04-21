@@ -13,7 +13,7 @@ from vczstore.normalise import (
     variant_alleles_are_equivalent,
 )
 
-from .utils import compare_vcf_and_vcz, convert_vcf_to_vcz
+from .utils import compare_vcf_and_vcz, convert_vcf_to_vcz, convert_vcf_to_vcz_icechunk
 
 
 # TODO: replace this with make_vcz in vcztools/bio2zarr
@@ -341,4 +341,27 @@ def test_normalise_and_append(tmp_path):
     # check equivalence with original VCF
     compare_vcf_and_vcz(
         tmp_path, "view --no-version", "sample-part1.vcf.gz", "view --no-version", vcz0
+    )
+
+
+def test_normalise_and_append_icechunk(tmp_path):
+    pytest.importorskip("icechunk")
+    from vczstore.icechunk_utils import icechunk_transaction
+
+    # note that vcz0 is in icechunk, but the others needn't be
+    vcz0 = convert_vcf_to_vcz_icechunk("sample-variants.vcf.gz", tmp_path, ploidy=2)
+    vcz1 = convert_vcf_to_vcz("sample-part1.vcf.gz", tmp_path)
+    vcz1_norm = zarr.storage.MemoryStore()
+
+    with icechunk_transaction(vcz0, "main", message="append") as store:
+        normalise(store, vcz1, vcz1_norm)
+        append(store, vcz1_norm)
+
+    # check equivalence with original VCF
+    compare_vcf_and_vcz(
+        tmp_path,
+        "view --no-version",
+        "sample-part1.vcf.gz",
+        "view --no-version --zarr-backend-storage icechunk",
+        vcz0,
     )

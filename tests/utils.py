@@ -289,10 +289,18 @@ def compare_vcf_and_vcz(tmp_path, vcf_args, vcf_file, vcz_args, vcz):
     assert_vcfs_close(bcftools_out_file, vcztools_out_file)
 
 
-def convert_vcf_to_vcz_icechunk(vcf_name, tmp_path):
+def convert_vcf_to_vcz_icechunk(
+    vcf_name, tmp_path, variants_chunk_size=None, samples_chunk_size=None, ploidy=None
+):
     from vczstore.icechunk_utils import copy_store_to_icechunk
 
-    vcz = convert_vcf_to_vcz(vcf_name, tmp_path)
+    vcz = convert_vcf_to_vcz(
+        vcf_name,
+        tmp_path,
+        variants_chunk_size=variants_chunk_size,
+        samples_chunk_size=samples_chunk_size,
+        ploidy=ploidy,
+    )
 
     ic_tmp_path = tmp_path / "icechunk"
     ic_tmp_path.mkdir()
