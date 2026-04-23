@@ -1,4 +1,6 @@
+import numpy as np
 import pytest
+import zarr
 
 from vczstore.remove import remove
 
@@ -11,14 +13,15 @@ from .utils import (
 )
 
 
-def test_remove(tmp_path):
+@pytest.mark.parametrize("io_concurrency", [1, 4])
+def test_remove(tmp_path, io_concurrency):
     vcz = convert_vcf_to_vcz("sample.vcf.gz", tmp_path)
 
     # check samples query
     vcztools_out, _ = run_vcztools(f"query -l {vcz}")
     assert vcztools_out.strip() == "NA00001\nNA00002\nNA00003"
 
-    remove(vcz, "NA00002")
+    remove(vcz, "NA00002", io_concurrency=io_concurrency)
 
     # check samples query
     vcztools_out, _ = run_vcztools(f"query -l {vcz}")
@@ -113,3 +116,45 @@ def test_remove_icechunk(tmp_path):
     session = repo.readonly_session("main")
     store = session.store
     check_removed_sample(store, "NA00002")
+
+
+def test_remove_fails_for_misaligned_variant_chunks():
+    store = zarr.storage.MemoryStore()
+    root = zarr.create_group(store=store)
+    root.create_array(
+        "variant_contig",
+        data=np.array([0, 0], dtype=np.int32),
+        chunks=(2,),
+        dimension_names=["variants"],
+        compressors=None,
+        filters=None,
+    )
+    root.create_array(
+        "variant_position",
+        data=np.array([1, 2], dtype=np.int32),
+        chunks=(2,),
+        dimension_names=["variants"],
+        compressors=None,
+        filters=None,
+    )
+    root.create_array(
+        "sample_id",
+        data=np.array(["S1", "S2"]),
+        dimension_names=["samples"],
+        compressors=None,
+        filters=None,
+    )
+    root.create_array(
+        "call_genotype",
+        data=np.array([[[0, 1], [1, 1]], [[0, 0], [0, 1]]], dtype=np.int8),
+        chunks=(1, 2, 2),
+        dimension_names=["variants", "samples", "ploidy"],
+        compressors=None,
+        filters=None,
+    )
+
+    with pytest.raises(ValueError, match="VCZ-aligned variant chunks"):
+        remove(store, "S1", io_concurrency=2)
+
+    root_after = zarr.open_group(store=store, mode="r")
+    np.testing.assert_array_equal(root_after["sample_id"][:], np.array(["S1", "S2"]))

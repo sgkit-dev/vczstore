@@ -1,7 +1,9 @@
 # Most of this is from vcztools
 
+import os
 import pathlib
 import subprocess
+import sys
 from collections.abc import Iterator
 from contextlib import contextmanager
 from itertools import zip_longest
@@ -294,13 +296,49 @@ def convert_vcf_to_vcz_icechunk(
 ):
     from vczstore.icechunk_utils import copy_store_to_icechunk
 
-    vcz = convert_vcf_to_vcz(
-        vcf_name,
-        tmp_path,
-        variants_chunk_size=variants_chunk_size,
-        samples_chunk_size=samples_chunk_size,
-        ploidy=ploidy,
+    vcf_path = pathlib.Path("tests/data/vcf") / vcf_name
+    vcz = (pathlib.Path(tmp_path) / vcf_path.name).with_suffix(".vcz")
+    env = dict(os.environ)
+    env["BIO2ZARR_ZARR_FORMAT"] = "3"
+    script = """
+from pathlib import Path
+import sys
+
+from bio2zarr import vcf
+
+vcf_path = Path(sys.argv[1])
+output = Path(sys.argv[2])
+variants_chunk_size = None if sys.argv[3] == "None" else int(sys.argv[3])
+samples_chunk_size = None if sys.argv[4] == "None" else int(sys.argv[4])
+ploidy = None if sys.argv[5] == "None" else int(sys.argv[5])
+
+vcf.convert(
+    [vcf_path],
+    output,
+    variants_chunk_size=variants_chunk_size,
+    samples_chunk_size=samples_chunk_size,
+    worker_processes=0,
+    local_alleles=False,
+    ploidy=ploidy,
+)
+"""
+    completed = subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            script,
+            str(vcf_path),
+            str(vcz),
+            str(variants_chunk_size),
+            str(samples_chunk_size),
+            str(ploidy),
+        ],
+        capture_output=True,
+        check=False,
+        env=env,
+        text=True,
     )
+    assert completed.returncode == 0, completed.stderr
 
     ic_tmp_path = tmp_path / "icechunk"
     ic_tmp_path.mkdir()

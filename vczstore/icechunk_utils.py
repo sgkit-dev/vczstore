@@ -2,8 +2,7 @@ from contextlib import contextmanager
 from pathlib import Path
 from urllib.parse import urlparse
 
-from zarr.core.sync import sync
-from zarr.storage._common import make_store
+from vczstore.store_copy import copy_store as _copy_store
 
 
 def _split_azure_container_path(path, *, file_or_url):
@@ -98,25 +97,11 @@ def delete_previous_snapshots(repo, branch="main"):
     repo.expire_snapshots(older_than=expiry_time)
     repo.garbage_collect(expiry_time)
 
-
-# inspired by commit f3c123d3a2a94b7f14bc995e3897ee6acc9acbd1 in zarr-python
-def copy_store(source, dest):
-    from zarr.core.buffer.core import default_buffer_prototype
-    from zarr.testing.stateful import SyncStoreWrapper
-
-    # ensure source and dest are both stores
-    source = sync(make_store(source))
-    dest = sync(make_store(dest))
-
-    s = SyncStoreWrapper(source)
-    d = SyncStoreWrapper(dest)
-    # need reverse=True to create zarr.json before chunks (otherwise icechunk complains)
-    for source_key in sorted(s.list(), reverse=True):
-        buffer = s.get(source_key, default_buffer_prototype())
-        d.set(source_key, buffer)
+def copy_store(source, dest, *, io_concurrency=None):
+    _copy_store(source, dest, io_concurrency=io_concurrency)
 
 
-def copy_store_to_icechunk(source, dest):
+def copy_store_to_icechunk(source, dest, *, io_concurrency=None):
     """Copy a Zarr store to a new Icechunk store."""
     from icechunk import Repository
 
@@ -124,7 +109,7 @@ def copy_store_to_icechunk(source, dest):
     repo = Repository.create(icechunk_storage)
 
     with repo.transaction("main", message="create") as dest:
-        copy_store(source, dest)
+        copy_store(source, dest, io_concurrency=io_concurrency)
 
 
 @contextmanager

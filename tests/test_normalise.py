@@ -105,10 +105,16 @@ def make_vcz(
         )
     if call_fields is not None:
         for name, data in call_fields.items():
+            if data.ndim == 2:
+                chunks = (v_chunk, s_chunk)
+            elif data.ndim == 3:
+                chunks = (v_chunk, s_chunk, data.shape[2])
+            else:
+                raise ValueError("call field arrays must be 2D or 3D")
             root.create_array(
                 name=f"call_{name}",
                 data=data,
-                chunks=(v_chunk, s_chunk, data.shape[2]),
+                chunks=chunks,
                 dimension_names=call_field_dims[name],
                 compressors=None,
                 filters=None,
@@ -246,7 +252,8 @@ def test_index_variants__new_allele():
 
 
 @pytest.mark.parametrize("variants_chunk_size", [None, 1, 3, 4, 5, 10])
-def test_normalise(variants_chunk_size):
+@pytest.mark.parametrize("io_concurrency", [1, 4])
+def test_normalise(variants_chunk_size, io_concurrency):
     vcz1 = make_vcz(
         variant_contig=[0, 0, 0, 0, 0, 0, 0, 0, 0],
         variant_position=[1, 2, 3, 4, 4, 5, 5, 6, 7],
@@ -281,7 +288,7 @@ def test_normalise(variants_chunk_size):
 
     vcz2_norm = zarr.storage.MemoryStore()
 
-    normalise(vcz1, vcz2, vcz2_norm)
+    normalise(vcz1, vcz2, vcz2_norm, io_concurrency=io_concurrency)
 
     root1 = zarr.open(vcz1)
     root_norm = zarr.open(vcz2_norm)
