@@ -131,7 +131,7 @@ def test_append_icechunk(tmp_path):
 
     # note that vcz1 is in icechunk, but the dataset being appended, vcz2, needn't be
     vcz1 = convert_vcf_to_vcz_icechunk("sample-part1.vcf.gz", tmp_path)
-    vcz2 = convert_vcf_to_vcz("sample-part2.vcf.gz", tmp_path)
+    vcz2 = convert_vcf_to_vcz("sample-part2.vcf.gz", tmp_path, zarr_format=3)
 
     print(vcz1)
     print(vcz2)

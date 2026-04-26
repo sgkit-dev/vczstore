@@ -350,7 +350,7 @@ def test_normalise_and_append_icechunk(tmp_path):
 
     # note that vcz0 is in icechunk, but the others needn't be
     vcz0 = convert_vcf_to_vcz_icechunk("sample-variants.vcf.gz", tmp_path, ploidy=2)
-    vcz1 = convert_vcf_to_vcz("sample-part1.vcf.gz", tmp_path)
+    vcz1 = convert_vcf_to_vcz("sample-part1.vcf.gz", tmp_path, zarr_format=3)
     vcz1_norm = zarr.storage.MemoryStore()
 
     with icechunk_transaction(vcz0, "main", message="append") as store:

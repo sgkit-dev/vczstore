@@ -85,8 +85,8 @@ NA00003
 # Create some VCZ data
 % rm -rf data
 % mkdir data
-% BIO2ZARR_ZARR_FORMAT=3 uv run vcf2zarr convert --no-progress --samples-chunk-size=4 tests/data/vcf/sample-part1.vcf.gz data/sample-part1.vcf.vcz
-% BIO2ZARR_ZARR_FORMAT=3 uv run vcf2zarr convert --no-progress tests/data/vcf/sample-part2.vcf.gz data/sample-part2.vcf.vcz
+% uv run vcf2zarr convert --no-progress --zarr-format=3 --samples-chunk-size=4 tests/data/vcf/sample-part1.vcf.gz data/sample-part1.vcf.vcz
+% uv run vcf2zarr convert --no-progress --zarr-format=3 tests/data/vcf/sample-part2.vcf.gz data/sample-part2.vcf.vcz
 
 # Copy first vcz to an icechunk store
 % uv run vczstore copy-store-to-icechunk data/sample-part1.vcf.vcz data/store.vcz

@@ -56,12 +56,12 @@ def _convert_vcf_to_vcz_zarr3(vcf_name, tmp_path):
     vcf_path = pathlib.Path("tests/data/vcf") / vcf_name
     output = (tmp_path / vcf_path.name).with_suffix(".vcz")
     env = dict(os.environ)
-    env["BIO2ZARR_ZARR_FORMAT"] = "3"
     completed = subprocess.run(
         [
             "vcf2zarr",
             "convert",
             "--no-progress",
+            "--zarr-format=3",
             "--worker-processes=0",
             str(vcf_path),
             str(output),

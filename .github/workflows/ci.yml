@@ -152,7 +152,7 @@ jobs:
         run: |
           uv run pytest
         env:
-          BIO2ZARR_ZARR_FORMAT: ${{ matrix.zarr-format }}
+          BIO2ZARR_DEFAULT_ZARR_FORMAT: ${{ matrix.zarr-format }}
 
   test-azure-emulator:
     name: Test Azure emulator
@@ -183,4 +183,4 @@ jobs:
         run: |
           uv run pytest -q tests/test_azure.py
         env:
-          BIO2ZARR_ZARR_FORMAT: "3"
+          BIO2ZARR_DEFAULT_ZARR_FORMAT: "3"
