@@ -14,14 +14,15 @@ from .utils import (
 )
 
 
-def test_remove(tmp_path):
+@pytest.mark.parametrize("zarr_backend_storage", [None, "obstore", "fsspec"])
+def test_remove(tmp_path, zarr_backend_storage):
     vcz = convert_vcf_to_vcz("sample.vcf.gz", tmp_path)
 
     # check samples query
     vcztools_out, _ = run_vcztools(f"query -l {vcz}")
     assert vcztools_out.strip() == "NA00001\nNA00002\nNA00003"
 
-    remove(vcz, "NA00002")
+    remove(vcz, "NA00002", zarr_backend_storage=zarr_backend_storage)
 
     # check samples query
     vcztools_out, _ = run_vcztools(f"query -l {vcz}")
