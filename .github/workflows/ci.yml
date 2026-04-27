@@ -144,34 +144,3 @@ jobs:
           uv run pytest
         env:
           BIO2ZARR_DEFAULT_ZARR_FORMAT: ${{ matrix.zarr-format }}
-
-  test-azure-emulator:
-    name: Test Azure emulator
-    runs-on: ubuntu-24.04
-    steps:
-      - uses: actions/checkout@v4.2.2
-        with:
-          fetch-depth: 0
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: "22"
-
-      - name: Install Azurite
-        run: npm install -g azurite
-
-      - name: Install uv and set the python version
-        uses: astral-sh/setup-uv@v6
-        with:
-          python-version: "3.12"
-
-      - name: Install test dependencies
-        run: |
-          uv sync --locked --group test --extra icechunk --no-default-groups
-
-      - name: Run Azure Icechunk test
-        run: |
-          uv run pytest -q tests/test_azure.py
-        env:
-          BIO2ZARR_DEFAULT_ZARR_FORMAT: "3"
