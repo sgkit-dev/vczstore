@@ -35,12 +35,16 @@ from .utils import (
 )
 
 
-@pytest.mark.parametrize("samples_chunk_size", [1, 2, 4])
-def test_append(tmp_path, samples_chunk_size):
+@pytest.mark.parametrize(
+    "samples_chunk_sizes", [(1, None), (2, None), (2, 2), (4, None)]
+)
+def test_append(tmp_path, samples_chunk_sizes):
     vcz1 = convert_vcf_to_vcz(
-        "sample-part1.vcf.gz", tmp_path, samples_chunk_size=samples_chunk_size
+        "sample-part1.vcf.gz", tmp_path, samples_chunk_size=samples_chunk_sizes[0]
     )
-    vcz2 = convert_vcf_to_vcz("sample-part2.vcf.gz", tmp_path)
+    vcz2 = convert_vcf_to_vcz(
+        "sample-part2.vcf.gz", tmp_path, samples_chunk_size=samples_chunk_sizes[1]
+    )
 
     # check samples query
     vcztools_out, _ = run_vcztools(f"query -l {vcz1}")

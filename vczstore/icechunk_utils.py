@@ -116,6 +116,57 @@ def copy_store(source, dest):
         d.set(source_key, buffer)
 
 
+def copy_store_chunks(source, dest, array_key, chunk_offset):
+    print("copy_store_chunks", array_key)
+    import zarr
+    from zarr.core.buffer.core import default_buffer_prototype
+    from zarr.core.chunk_key_encodings import V2ChunkKeyEncoding
+    from zarr.storage._utils import _relativize_path
+    from zarr.testing.stateful import SyncStoreWrapper
+
+    # ensure source and dest are both stores
+    source = sync(make_store(source))
+    dest = sync(make_store(dest))
+
+    s = SyncStoreWrapper(source)
+    d = SyncStoreWrapper(dest)
+
+    source_root = zarr.open(source)
+    dest_root = zarr.open(dest)
+
+    for source_key in s.list():  # TODO: use prefix?
+        try:
+            chunk_part = _relativize_path(path=source_key, prefix=array_key)
+            if chunk_part in (".zattrs", ".zarray"):  # TODO others - where to get list?
+                continue
+        except ValueError:
+            continue
+
+        source_metadata = source_root[array_key].metadata
+        if source_metadata.zarr_format == 2:
+            chunk_key_encoding = V2ChunkKeyEncoding(
+                separator=source_metadata.dimension_separator
+            )
+        else:
+            chunk_key_encoding = source_metadata.chunk_key_encoding
+        source_chunk_coords = chunk_key_encoding.decode_chunk_key(chunk_part)
+
+        dest_chunk_coords = tuple(
+            c + co for c, co in zip(source_chunk_coords, chunk_offset)
+        )
+        dest_chunk_key = dest_root[array_key].metadata.encode_chunk_key(
+            dest_chunk_coords
+        )
+        dest_key = f"{array_key}/{dest_chunk_key}"
+
+        print(
+            f"copying {source_key}, source_chunk_coords {source_chunk_coords} "
+            f"to {dest_key}"
+        )
+        buffer = s.get(source_key, default_buffer_prototype())
+        d.set(dest_key, buffer)
+
+
 def copy_store_to_icechunk(source, dest):
     """Copy a Zarr store to a new Icechunk store."""
     from icechunk import Repository
