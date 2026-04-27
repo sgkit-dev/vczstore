@@ -54,6 +54,8 @@ icechunk = ["hypothesis", "icechunk"]
 test = [
   "azure-storage-blob",
   "cyvcf2",
+  "hypothesis>=6.151.12",
+  "icechunk>=1.1.21",
   "pytest",
   "pytest-cov",
 ]
