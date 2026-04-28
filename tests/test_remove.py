@@ -89,15 +89,14 @@ def test_remove_icechunk(tmp_path):
     assert snapshots[0].message == "create"
     assert snapshots[1].message == "Repository initialized"
 
-    with repo.transaction("main", message="append") as store:
-        remove(store, "NA00002")
+    remove(vcz, "NA00002", zarr_backend_storage="icechunk")
 
     delete_previous_snapshots(repo)
 
     snapshots = [snapshot for snapshot in repo.ancestry(branch="main")]
     assert len(snapshots) == 2
     # note that 'create' has been deleted
-    assert snapshots[0].message == "append"
+    assert snapshots[0].message == "remove"
     assert snapshots[1].message == "Repository initialized"
 
     # check samples query

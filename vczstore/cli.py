@@ -1,5 +1,3 @@
-from contextlib import nullcontext
-
 import click
 
 from vczstore.append import append as append_function
@@ -52,20 +50,13 @@ zarr_backend_storage = click.option(
 @zarr_backend_storage
 def append(vcz1, vcz2, progress, zarr_backend_storage):
     """Append vcz2 to vcz1 in place"""
-    if zarr_backend_storage == "icechunk":
-        from vczstore.icechunk_utils import icechunk_transaction
-
-        cm = icechunk_transaction(vcz1, "main", message="append")
-    else:
-        cm = nullcontext(vcz1)
-    with cm as vcz1:
-        call_or_error(
-            append_function,
-            vcz1,
-            vcz2,
-            show_progress=progress,
-            zarr_backend_storage=zarr_backend_storage,
-        )
+    call_or_error(
+        append_function,
+        vcz1,
+        vcz2,
+        show_progress=progress,
+        zarr_backend_storage=zarr_backend_storage,
+    )
 
 
 @click.command()
@@ -73,7 +64,8 @@ def append(vcz1, vcz2, progress, zarr_backend_storage):
 @click.argument("vcz2", type=click.Path())
 @click.argument("vcz2_norm", type=click.Path())
 @progress
-def normalise(vcz1, vcz2, vcz2_norm, progress):
+@zarr_backend_storage
+def normalise(vcz1, vcz2, vcz2_norm, progress, zarr_backend_storage):
     """Normalise variants in vcz2 with respect to vcz1 and write to vcz2_norm"""
     call_or_error(
         normalise_function,
@@ -92,20 +84,13 @@ def normalise(vcz1, vcz2, vcz2_norm, progress):
 @zarr_backend_storage
 def remove(vcz, sample_id, progress, zarr_backend_storage):
     """Remove a sample from vcz and overwrite with missing data"""
-    if zarr_backend_storage == "icechunk":
-        from vczstore.icechunk_utils import icechunk_transaction
-
-        cm = icechunk_transaction(vcz, "main", message="remove")
-    else:
-        cm = nullcontext(vcz)
-    with cm as vcz:
-        call_or_error(
-            remove_function,
-            vcz,
-            sample_id,
-            show_progress=progress,
-            zarr_backend_storage=zarr_backend_storage,
-        )
+    call_or_error(
+        remove_function,
+        vcz,
+        sample_id,
+        show_progress=progress,
+        zarr_backend_storage=zarr_backend_storage,
+    )
 
 
 @click.command()
