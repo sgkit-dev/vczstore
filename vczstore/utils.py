@@ -21,13 +21,19 @@ def missing_val(arr):
 def variant_chunk_slices(root):
     """A generator returning chunk slices along the variants dimension."""
     pos = root["variant_position"]
-    size = pos.shape[0]
-    v_chunksize = pos.chunks[0]
-    num_chunks = pos.cdata_shape[0]
-    for v_chunk in range(num_chunks):
-        start = v_chunksize * v_chunk
-        end = min(v_chunksize * (v_chunk + 1), size)
+    yield from chunk_slices(pos.shape[0], pos.chunks[0])
+
+
+def chunk_slices(size, chunk_size):
+    num_chunks = (size + chunk_size - 1) // chunk_size
+    for chunk_index in range(num_chunks):
+        start = chunk_size * chunk_index
+        end = min(chunk_size * (chunk_index + 1), size)
         yield slice(start, end)
+
+
+def variant_chunk_slices_for_array(arr):
+    yield from chunk_slices(arr.shape[0], arr.chunks[0])
 
 
 def variants_progress(n_variants, title, show_progress=False):

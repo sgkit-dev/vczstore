@@ -38,7 +38,8 @@ from .utils import (
 
 
 @pytest.mark.parametrize("samples_chunk_size", [1, 2, 4])
-def test_append(tmp_path, samples_chunk_size):
+@pytest.mark.parametrize("io_concurrency", [1, 4])
+def test_append(tmp_path, samples_chunk_size, io_concurrency):
     vcz1 = convert_vcf_to_vcz(
         "sample-part1.vcf.gz", tmp_path, samples_chunk_size=samples_chunk_size
     )
@@ -48,7 +49,7 @@ def test_append(tmp_path, samples_chunk_size):
     vcztools_out, _ = run_vcztools(f"query -l {vcz1}")
     assert vcztools_out.strip() == "NA00001\nNA00002"
 
-    append(vcz1, vcz2)
+    append(vcz1, vcz2, io_concurrency=io_concurrency)
 
     # check samples query
     vcztools_out, _ = run_vcztools(f"query -l {vcz1}")
