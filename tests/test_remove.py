@@ -9,6 +9,7 @@ from .utils import (
     compare_vcf_and_vcz,
     convert_vcf_to_vcz,
     convert_vcf_to_vcz_icechunk,
+    make_vcz,
     run_vcztools,
 )
 
@@ -118,73 +119,47 @@ def test_remove_icechunk(tmp_path):
 
 
 def test_remove_fails_for_misaligned_variant_chunks():
-    store = zarr.storage.MemoryStore()
-    root = zarr.create_group(store=store)
-    root.create_array(
-        "variant_contig",
-        data=np.array([0, 0], dtype=np.int32),
-        chunks=(2,),
-        dimension_names=["variants"],
-        compressors=None,
-        filters=None,
+    vcz = make_vcz(
+        variant_contig=[0, 0],
+        variant_position=[1, 2],
+        alleles=[
+            ["A", "T"],
+            ["C", "G"],
+        ],
+        sample_id=["S1"],
+        variants_chunk_size=2,
     )
-    root.create_array(
-        "variant_position",
-        data=np.array([1, 2], dtype=np.int32),
-        chunks=(2,),
-        dimension_names=["variants"],
-        compressors=None,
-        filters=None,
-    )
-    root.create_array(
-        "sample_id",
-        data=np.array(["S1", "S2"]),
-        dimension_names=["samples"],
-        compressors=None,
-        filters=None,
-    )
+    # create call_genotype with different variant chunks
+    root = zarr.open(vcz, mode="r+")
     root.create_array(
         "call_genotype",
-        data=np.array([[[0, 1], [1, 1]], [[0, 0], [0, 1]]], dtype=np.int8),
-        chunks=(1, 2, 2),
+        data=np.array([[[0, 1]], [[1, 1]]], dtype=np.int8),
+        chunks=(1, 1, 2),
         dimension_names=["variants", "samples", "ploidy"],
         compressors=None,
         filters=None,
     )
 
     with pytest.raises(ValueError, match="VCZ-aligned variant chunks"):
-        remove(store, "S1")
+        remove(vcz, "S1")
 
-    root_after = zarr.open_group(store=store, mode="r")
-    np.testing.assert_array_equal(root_after["sample_id"][:], np.array(["S1", "S2"]))
+    root_after = zarr.open_group(store=vcz, mode="r")
+    np.testing.assert_array_equal(root_after["sample_id"][:], np.array(["S1"]))
 
 
 def test_remove_fails_for_malformed_call_array_dimensions():
-    store = zarr.storage.MemoryStore()
-    root = zarr.create_group(store=store)
-    root.create_array(
-        "variant_contig",
-        data=np.array([0, 0], dtype=np.int32),
-        chunks=(2,),
-        dimension_names=["variants"],
-        compressors=None,
-        filters=None,
+    vcz = make_vcz(
+        variant_contig=[0, 0],
+        variant_position=[1, 2],
+        alleles=[
+            ["A", "T"],
+            ["C", "G"],
+        ],
+        sample_id=["S1"],
+        variants_chunk_size=2,
     )
-    root.create_array(
-        "variant_position",
-        data=np.array([1, 2], dtype=np.int32),
-        chunks=(2,),
-        dimension_names=["variants"],
-        compressors=None,
-        filters=None,
-    )
-    root.create_array(
-        "sample_id",
-        data=np.array(["S1", "S2"]),
-        dimension_names=["samples"],
-        compressors=None,
-        filters=None,
-    )
+    # create call_quality with invalid dimensions
+    root = zarr.open(vcz, mode="r+")
     root.create_array(
         "call_quality",
         data=np.array([[10, 20], [30, 40]], dtype=np.int16),
@@ -194,8 +169,11 @@ def test_remove_fails_for_malformed_call_array_dimensions():
         filters=None,
     )
 
-    with pytest.raises(ValueError, match="variants/samples dimensions"):
-        remove(store, "S1")
+    with pytest.raises(
+        ValueError,
+        match="remove requires 'call_quality' to use variants/samples dimensions",
+    ):
+        remove(vcz, "S1")
 
-    root_after = zarr.open_group(store=store, mode="r")
-    np.testing.assert_array_equal(root_after["sample_id"][:], np.array(["S1", "S2"]))
+    root_after = zarr.open_group(store=vcz, mode="r")
+    np.testing.assert_array_equal(root_after["sample_id"][:], np.array(["S1"]))

@@ -13,107 +13,12 @@ from vczstore.normalise import (
     variant_alleles_are_equivalent,
 )
 
-from .utils import compare_vcf_and_vcz, convert_vcf_to_vcz, convert_vcf_to_vcz_icechunk
-
-
-# TODO: replace this with make_vcz in vcztools/bio2zarr
-# see https://github.com/sgkit-dev/vczstore/issues/37
-def make_vcz(
-    variant_contig,
-    variant_position,
-    alleles,
-    *,
-    sample_id=None,
-    variants_chunk_size=None,
-    samples_chunk_size=None,
-    call_genotype=None,
-    call_fields=None,
-    call_field_dims=None,
-    ploidy=2,
-):
-
-    variant_contig = np.asarray(variant_contig, dtype=np.int32)
-    variant_position = np.asarray(variant_position, dtype=np.int32)
-    num_variants = variant_contig.shape[0]
-    max_alleles = max(len(a) for a in alleles) if len(alleles) > 0 else 1
-    allele_array = np.full((num_variants, max_alleles), "", dtype="<U16")
-    for i, row in enumerate(alleles):
-        for j, a in enumerate(row):
-            allele_array[i, j] = a
-
-    num_samples = len(sample_id) if sample_id is not None else 0
-
-    v_chunk = variants_chunk_size if variants_chunk_size is not None else num_variants
-    v_chunk = max(v_chunk, 1)
-    s_chunk = (
-        samples_chunk_size if samples_chunk_size is not None else max(num_samples, 1)
-    )
-
-    store = zarr.storage.MemoryStore()
-    root = zarr.create_group(store=store)
-    root.create_array(
-        name="contig_id",
-        data=np.unique(variant_contig).astype(str),
-        dimension_names=["contigs"],
-        compressors=None,
-        filters=None,
-    )
-    root.create_array(
-        name="variant_contig",
-        data=variant_contig,
-        chunks=(v_chunk,),
-        dimension_names=["variants"],
-        compressors=None,
-        filters=None,
-    )
-    root.create_array(
-        name="variant_position",
-        data=variant_position,
-        chunks=(v_chunk,),
-        dimension_names=["variants"],
-        compressors=None,
-        filters=None,
-    )
-    root.create_array(
-        name="variant_allele",
-        data=allele_array,
-        chunks=(v_chunk, max_alleles),
-        dimension_names=["variants", "alleles"],
-        compressors=None,
-        filters=None,
-    )
-    if sample_id is None:
-        sample_id_arr = np.array([], dtype="<U64")
-    else:
-        sample_id_arr = np.asarray(sample_id, dtype="<U64")
-    root.create_array(
-        name="sample_id",
-        data=sample_id_arr,
-        dimension_names=["samples"],
-        compressors=None,
-        filters=None,
-    )
-    if call_genotype is not None:
-        call_genotype = np.asarray(call_genotype, dtype=np.int8)
-        root.create_array(
-            name="call_genotype",
-            data=call_genotype,
-            chunks=(v_chunk, s_chunk, ploidy),
-            dimension_names=["variants", "samples", "ploidy"],
-            compressors=None,
-            filters=None,
-        )
-    if call_fields is not None:
-        for name, data in call_fields.items():
-            root.create_array(
-                name=f"call_{name}",
-                data=data,
-                chunks=(v_chunk, s_chunk, data.shape[2]),
-                dimension_names=call_field_dims[name],
-                compressors=None,
-                filters=None,
-            )
-    return store
+from .utils import (
+    compare_vcf_and_vcz,
+    convert_vcf_to_vcz,
+    convert_vcf_to_vcz_icechunk,
+    make_vcz,
+)
 
 
 @pytest.mark.parametrize(

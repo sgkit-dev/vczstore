@@ -33,6 +33,7 @@ from .utils import (
     compare_vcf_and_vcz,
     convert_vcf_to_vcz,
     convert_vcf_to_vcz_icechunk,
+    make_vcz,
     run_vcztools,
 )
 
@@ -104,46 +105,18 @@ def test_append_fail_alleles_mismatch(tmp_path):
 
 
 def test_append_fails_for_misaligned_variant_chunks():
-    store1 = zarr.storage.MemoryStore()
-    root1 = zarr.create_group(store=store1)
-    root1.create_array(
-        "contig_id",
-        data=np.array(["0"]),
-        dimension_names=["contigs"],
-        compressors=None,
-        filters=None,
+    vcz1 = make_vcz(
+        variant_contig=[0, 0],
+        variant_position=[1, 2],
+        alleles=[
+            ["A", "T"],
+            ["C", "G"],
+        ],
+        sample_id=["S1"],
+        variants_chunk_size=2,
     )
-    root1.create_array(
-        "variant_contig",
-        data=np.array([0, 0], dtype=np.int32),
-        chunks=(2,),
-        dimension_names=["variants"],
-        compressors=None,
-        filters=None,
-    )
-    root1.create_array(
-        "variant_position",
-        data=np.array([1, 2], dtype=np.int32),
-        chunks=(2,),
-        dimension_names=["variants"],
-        compressors=None,
-        filters=None,
-    )
-    root1.create_array(
-        "variant_allele",
-        data=np.array([["A", "T"], ["C", "G"]]),
-        chunks=(2, 2),
-        dimension_names=["variants", "alleles"],
-        compressors=None,
-        filters=None,
-    )
-    root1.create_array(
-        "sample_id",
-        data=np.array(["S1"]),
-        dimension_names=["samples"],
-        compressors=None,
-        filters=None,
-    )
+    # create call_genotype with different variant chunks
+    root1 = zarr.open(vcz1, mode="r+")
     root1.create_array(
         "call_genotype",
         data=np.array([[[0, 1]], [[1, 1]]], dtype=np.int8),
@@ -153,198 +126,96 @@ def test_append_fails_for_misaligned_variant_chunks():
         filters=None,
     )
 
-    store2 = zarr.storage.MemoryStore()
-    root2 = zarr.create_group(store=store2)
-    for name in ("contig_id", "variant_contig", "variant_position", "variant_allele"):
-        root2.create_array(
-            name,
-            data=root1[name][:],
-            chunks=root1[name].chunks,
-            dimension_names=root1[name].metadata.dimension_names,
-            compressors=None,
-            filters=None,
-        )
-    root2.create_array(
-        "sample_id",
-        data=np.array(["S2"]),
-        dimension_names=["samples"],
-        compressors=None,
-        filters=None,
+    vcz2 = make_vcz(
+        variant_contig=[0, 0],
+        variant_position=[1, 2],
+        alleles=[
+            ["A", "T"],
+            ["C", "G"],
+        ],
+        sample_id=["S2"],
+        call_genotype=[[[0, 0]], [[0, 1]]],
+        variants_chunk_size=2,
     )
+
+    with pytest.raises(ValueError, match="VCZ-aligned variant chunks"):
+        append(vcz1, vcz2)
+
+    root1_after = zarr.open_group(store=vcz1, mode="r")
+    np.testing.assert_array_equal(root1_after["sample_id"][:], np.array(["S1"]))
+
+
+def test_append_fails_for_misaligned_source_variant_chunks():
+    vcz1 = make_vcz(
+        variant_contig=[0, 0],
+        variant_position=[1, 2],
+        alleles=[
+            ["A", "T"],
+            ["C", "G"],
+        ],
+        sample_id=["S1"],
+        call_genotype=[[[0, 1]], [[1, 1]]],
+        variants_chunk_size=2,
+    )
+
+    vcz2 = make_vcz(
+        variant_contig=[0, 0],
+        variant_position=[1, 2],
+        alleles=[
+            ["A", "T"],
+            ["C", "G"],
+        ],
+        sample_id=["S2"],
+        variants_chunk_size=2,
+    )
+    # create call_genotype with different variant chunks
+    root2 = zarr.open(vcz2, mode="r+")
     root2.create_array(
         "call_genotype",
         data=np.array([[[0, 0]], [[0, 1]]], dtype=np.int8),
-        chunks=(2, 1, 2),
+        chunks=(1, 1, 2),
         dimension_names=["variants", "samples", "ploidy"],
         compressors=None,
         filters=None,
     )
 
     with pytest.raises(ValueError, match="VCZ-aligned variant chunks"):
-        append(store1, store2)
+        append(vcz1, vcz2)
 
-    root1_after = zarr.open_group(store=store1, mode="r")
+    root1_after = zarr.open_group(store=vcz1, mode="r")
     np.testing.assert_array_equal(root1_after["sample_id"][:], np.array(["S1"]))
 
 
 def test_append_fails_before_mutating_when_source_call_array_is_missing():
-    store1 = zarr.storage.MemoryStore()
-    root1 = zarr.create_group(store=store1)
-    root1.create_array(
-        "contig_id",
-        data=np.array(["0"]),
-        dimension_names=["contigs"],
-        compressors=None,
-        filters=None,
-    )
-    root1.create_array(
-        "variant_contig",
-        data=np.array([0, 0], dtype=np.int32),
-        chunks=(2,),
-        dimension_names=["variants"],
-        compressors=None,
-        filters=None,
-    )
-    root1.create_array(
-        "variant_position",
-        data=np.array([1, 2], dtype=np.int32),
-        chunks=(2,),
-        dimension_names=["variants"],
-        compressors=None,
-        filters=None,
-    )
-    root1.create_array(
-        "variant_allele",
-        data=np.array([["A", "T"], ["C", "G"]]),
-        chunks=(2, 2),
-        dimension_names=["variants", "alleles"],
-        compressors=None,
-        filters=None,
-    )
-    root1.create_array(
-        "sample_id",
-        data=np.array(["S1"]),
-        dimension_names=["samples"],
-        compressors=None,
-        filters=None,
-    )
-    root1.create_array(
-        "call_genotype",
-        data=np.array([[[0, 1]], [[1, 1]]], dtype=np.int8),
-        chunks=(2, 1, 2),
-        dimension_names=["variants", "samples", "ploidy"],
-        compressors=None,
-        filters=None,
+    vcz1 = make_vcz(
+        variant_contig=[0, 0],
+        variant_position=[1, 2],
+        alleles=[
+            ["A", "T"],
+            ["C", "G"],
+        ],
+        sample_id=["S1"],
+        call_genotype=[[[0, 1]], [[1, 1]]],
+        variants_chunk_size=2,
     )
 
-    store2 = zarr.storage.MemoryStore()
-    root2 = zarr.create_group(store=store2)
-    for name in ("contig_id", "variant_contig", "variant_position", "variant_allele"):
-        root2.create_array(
-            name,
-            data=root1[name][:],
-            chunks=root1[name].chunks,
-            dimension_names=root1[name].metadata.dimension_names,
-            compressors=None,
-            filters=None,
-        )
-    root2.create_array(
-        "sample_id",
-        data=np.array(["S2"]),
-        dimension_names=["samples"],
-        compressors=None,
-        filters=None,
+    vcz2 = make_vcz(
+        variant_contig=[0, 0],
+        variant_position=[1, 2],
+        alleles=[
+            ["A", "T"],
+            ["C", "G"],
+        ],
+        sample_id=["S2"],
+        variants_chunk_size=2,
     )
 
-    with pytest.raises(ValueError, match="present in both stores"):
-        append(store1, store2)
+    with pytest.raises(
+        ValueError, match="append requires 'call_genotype' to be present in both stores"
+    ):
+        append(vcz1, vcz2)
 
-    root1_after = zarr.open_group(store=store1, mode="r")
-    np.testing.assert_array_equal(root1_after["sample_id"][:], np.array(["S1"]))
-    assert root1_after["call_genotype"].shape == (2, 1, 2)
-
-
-def test_append_fails_for_misaligned_source_variant_chunks():
-    store1 = zarr.storage.MemoryStore()
-    root1 = zarr.create_group(store=store1)
-    root1.create_array(
-        "contig_id",
-        data=np.array(["0"]),
-        dimension_names=["contigs"],
-        compressors=None,
-        filters=None,
-    )
-    root1.create_array(
-        "variant_contig",
-        data=np.array([0, 0], dtype=np.int32),
-        chunks=(2,),
-        dimension_names=["variants"],
-        compressors=None,
-        filters=None,
-    )
-    root1.create_array(
-        "variant_position",
-        data=np.array([1, 2], dtype=np.int32),
-        chunks=(2,),
-        dimension_names=["variants"],
-        compressors=None,
-        filters=None,
-    )
-    root1.create_array(
-        "variant_allele",
-        data=np.array([["A", "T"], ["C", "G"]]),
-        chunks=(2, 2),
-        dimension_names=["variants", "alleles"],
-        compressors=None,
-        filters=None,
-    )
-    root1.create_array(
-        "sample_id",
-        data=np.array(["S1"]),
-        dimension_names=["samples"],
-        compressors=None,
-        filters=None,
-    )
-    root1.create_array(
-        "call_genotype",
-        data=np.array([[[0, 1]], [[1, 1]]], dtype=np.int8),
-        chunks=(2, 1, 2),
-        dimension_names=["variants", "samples", "ploidy"],
-        compressors=None,
-        filters=None,
-    )
-
-    store2 = zarr.storage.MemoryStore()
-    root2 = zarr.create_group(store=store2)
-    for name in ("contig_id", "variant_contig", "variant_position", "variant_allele"):
-        root2.create_array(
-            name,
-            data=root1[name][:],
-            chunks=root1[name].chunks,
-            dimension_names=root1[name].metadata.dimension_names,
-            compressors=None,
-            filters=None,
-        )
-    root2.create_array(
-        "sample_id",
-        data=np.array(["S2"]),
-        dimension_names=["samples"],
-        compressors=None,
-        filters=None,
-    )
-    root2.create_array(
-        "call_genotype",
-        data=np.array([[[0, 0]], [[0, 1]]], dtype=np.int8),
-        chunks=(1, 1, 2),
-        dimension_names=["variants", "samples", "ploidy"],
-        compressors=None,
-        filters=None,
-    )
-
-    with pytest.raises(ValueError, match="VCZ-aligned variant chunks"):
-        append(store1, store2)
-
-    root1_after = zarr.open_group(store=store1, mode="r")
+    root1_after = zarr.open_group(store=vcz1, mode="r")
     np.testing.assert_array_equal(root1_after["sample_id"][:], np.array(["S1"]))
     assert root1_after["call_genotype"].shape == (2, 1, 2)
 
