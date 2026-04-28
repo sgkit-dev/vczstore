@@ -4,12 +4,12 @@ from bio2zarr.zarr_utils import create_empty_group_array, get_compressor_config
 from more_itertools import peekable
 from vcztools.constants import STR_FILL, STR_MISSING
 from vcztools.retrieval import VczReader
-from vcztools.utils import array_dims, search
+from vcztools.utils import array_dims, open_zarr, search
 
 from vczstore.utils import missing_val, variant_chunk_slices, variants_progress
 
 
-def normalise(vcz1, vcz2, vcz2_norm, show_progress=False):
+def normalise(vcz1, vcz2, vcz2_norm, *, show_progress=False, zarr_backend_storage=None):
     """Normalise variants in vcz2 with respect to vcz1 and write to vcz2_norm.
 
     vcz1, vcz2, vcz2_norm are paths or Zarr stores. Variants in vcz1 not present
@@ -22,7 +22,8 @@ def normalise(vcz1, vcz2, vcz2_norm, show_progress=False):
     if len(updated_allele_mappings) > 0:
         raise NotImplementedError(f"New alleles found: {updated_allele_mappings}")
 
-    root1 = zarr.open(vcz1, mode="r")
+    root1 = open_zarr(vcz1, mode="r", zarr_backend_storage=zarr_backend_storage)
+    # assume vcz2, vcz2_norm are local
     root2 = zarr.open(vcz2, mode="r")
     norm_root = zarr.open(vcz2_norm, mode="w", zarr_format=root2.metadata.zarr_format)
 
@@ -141,7 +142,7 @@ def remap_genotypes(gt, indices, mappings):
                     gt[i, j, k] = mapping[val]
 
 
-def index_variants(vcz1, vcz2, *, show_progress=False):
+def index_variants(vcz1, vcz2, *, show_progress=False, zarr_backend_storage=None):
     """Construct an index for variants of vcz2 that are in vcz1.
 
     Returns:
@@ -157,8 +158,8 @@ def index_variants(vcz1, vcz2, *, show_progress=False):
     is a remapping. This is an efficient way to store allele mappings, since they
     are rare, and are not known ahead of time.
     """
-    root1 = zarr.open(vcz1, mode="r")
-    root2 = zarr.open(vcz2, mode="r")
+    root1 = open_zarr(vcz1, mode="r", zarr_backend_storage=zarr_backend_storage)
+    root2 = zarr.open(vcz2, mode="r")  # assume local
 
     if not np.all(root1["contig_id"][:] == root2["contig_id"][:]):
         raise ValueError("contig_id fields must be identical")

@@ -14,14 +14,15 @@ from .utils import (
 )
 
 
-def test_remove(tmp_path):
+@pytest.mark.parametrize("zarr_backend_storage", [None, "obstore", "fsspec"])
+def test_remove(tmp_path, zarr_backend_storage):
     vcz = convert_vcf_to_vcz("sample.vcf.gz", tmp_path)
 
     # check samples query
     vcztools_out, _ = run_vcztools(f"query -l {vcz}")
     assert vcztools_out.strip() == "NA00001\nNA00002\nNA00003"
 
-    remove(vcz, "NA00002")
+    remove(vcz, "NA00002", zarr_backend_storage=zarr_backend_storage)
 
     # check samples query
     vcztools_out, _ = run_vcztools(f"query -l {vcz}")
@@ -72,7 +73,7 @@ def test_remove_icechunk(tmp_path):
     pytest.importorskip("icechunk")
     from icechunk import Repository
 
-    from vczstore.icechunk_utils import delete_previous_snapshots, make_icechunk_storage
+    from vczstore.icechunk_utils import make_icechunk_storage
 
     vcz = convert_vcf_to_vcz_icechunk("sample.vcf.gz", tmp_path)
 
@@ -88,15 +89,12 @@ def test_remove_icechunk(tmp_path):
     assert snapshots[0].message == "create"
     assert snapshots[1].message == "Repository initialized"
 
-    with repo.transaction("main", message="append") as store:
-        remove(store, "NA00002")
-
-    delete_previous_snapshots(repo)
+    remove(vcz, "NA00002", zarr_backend_storage="icechunk")
 
     snapshots = [snapshot for snapshot in repo.ancestry(branch="main")]
     assert len(snapshots) == 2
     # note that 'create' has been deleted
-    assert snapshots[0].message == "append"
+    assert snapshots[0].message == "remove"
     assert snapshots[1].message == "Repository initialized"
 
     # check samples query
