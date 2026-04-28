@@ -1,4 +1,5 @@
 import logging
+from contextlib import nullcontext
 
 import numpy as np
 from vcztools.utils import array_dims, open_zarr, search
@@ -29,36 +30,43 @@ def _assert_variant_chunk_alignment(arrays, *, variant_chunk_size, operation):
 
 def remove(vcz, sample_id, *, show_progress=False, zarr_backend_storage=None):
     """Remove a sample from vcz and overwrite with missing data"""
-    root = open_zarr(vcz, mode="r+", zarr_backend_storage=zarr_backend_storage)
-    n_variants = root["variant_contig"].shape[0]
-    all_samples = root["sample_id"][:]
+    if zarr_backend_storage == "icechunk":
+        from vczstore.icechunk_utils import icechunk_transaction
 
-    # find index of sample to remove
-    unknown_samples = np.setdiff1d(sample_id, all_samples)
-    if len(unknown_samples) > 0:
-        raise ValueError(f"unrecognised sample: {sample_id}")
-    sample_selection = search(all_samples, sample_id)
+        cm = icechunk_transaction(vcz, "main", message="remove")
+    else:
+        cm = nullcontext(vcz)
+    with cm as vcz:
+        root = open_zarr(vcz, mode="r+", zarr_backend_storage=zarr_backend_storage)
+        n_variants = root["variant_contig"].shape[0]
+        all_samples = root["sample_id"][:]
 
-    target_arrays = [
-        (name, arr) for name, arr in root.arrays() if name.startswith("call_")
-    ]
+        # find index of sample to remove
+        unknown_samples = np.setdiff1d(sample_id, all_samples)
+        if len(unknown_samples) > 0:
+            raise ValueError(f"unrecognised sample: {sample_id}")
+        sample_selection = search(all_samples, sample_id)
 
-    _assert_variant_chunk_alignment(
-        target_arrays,
-        variant_chunk_size=root["variant_contig"].chunks[0],
-        operation="remove",
-    )
+        target_arrays = [
+            (name, arr) for name, arr in root.arrays() if name.startswith("call_")
+        ]
 
-    # overwrite sample data
-    root["sample_id"][sample_selection] = ""
-    with variants_progress(n_variants, "Remove", show_progress) as pbar:
-        for v_sel in variant_chunk_slices(root):
-            for var in root.keys():
-                arr = root[var]
-                if (
-                    var.startswith("call_")
-                    and array_dims(arr)[0] == "variants"
-                    and array_dims(arr)[1] == "samples"
-                ):
-                    arr[v_sel, sample_selection, ...] = missing_val(arr)
-        pbar.update(v_sel.stop - v_sel.start)
+        _assert_variant_chunk_alignment(
+            target_arrays,
+            variant_chunk_size=root["variant_contig"].chunks[0],
+            operation="remove",
+        )
+
+        # overwrite sample data
+        root["sample_id"][sample_selection] = ""
+        with variants_progress(n_variants, "Remove", show_progress) as pbar:
+            for v_sel in variant_chunk_slices(root):
+                for var in root.keys():
+                    arr = root[var]
+                    if (
+                        var.startswith("call_")
+                        and array_dims(arr)[0] == "variants"
+                        and array_dims(arr)[1] == "samples"
+                    ):
+                        arr[v_sel, sample_selection, ...] = missing_val(arr)
+            pbar.update(v_sel.stop - v_sel.start)
