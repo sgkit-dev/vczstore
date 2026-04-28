@@ -9,7 +9,15 @@ from vcztools.utils import array_dims, open_zarr, search
 from vczstore.utils import missing_val, variant_chunk_slices, variants_progress
 
 
-def normalise(vcz1, vcz2, vcz2_norm, *, haploid_contigs=None, show_progress=False, zarr_backend_storage=None):
+def normalise(
+    vcz1,
+    vcz2,
+    vcz2_norm,
+    *,
+    haploid_contigs=None,
+    show_progress=False,
+    zarr_backend_storage=None,
+):
     """Normalise variants in vcz2 with respect to vcz1 and write to vcz2_norm.
 
     vcz1, vcz2, vcz2_norm are paths or Zarr stores. Variants in vcz1 not present

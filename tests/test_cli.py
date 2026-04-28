@@ -95,7 +95,9 @@ def test_copy_store_to_icechunk_cli_delegates_to_copy_function(monkeypatch):
 def test_append_cli_passes_io_concurrency_and_direct_copy_flag(monkeypatch):
     seen = {}
 
-    def fake_append(vcz1, vcz2, *, io_concurrency=None, require_direct_copy=False):
+    def fake_append(
+        vcz1, vcz2, *, io_concurrency=None, require_direct_copy=False, **kwargs
+    ):
         seen["args"] = (vcz1, vcz2)
         seen["io_concurrency"] = io_concurrency
         seen["require_direct_copy"] = require_direct_copy

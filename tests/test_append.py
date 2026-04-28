@@ -380,7 +380,6 @@ def test_append_multiple_chunks(tmp_path):
 
 def test_append_icechunk(tmp_path):
     pytest.importorskip("icechunk")
-    from vczstore.icechunk_utils import icechunk_transaction
 
     # note that vcz1 is in icechunk, but the dataset being appended, vcz2, needn't be
     vcz1 = convert_vcf_to_vcz_icechunk("sample-part1.vcf.gz", tmp_path)
@@ -393,8 +392,7 @@ def test_append_icechunk(tmp_path):
     vcztools_out, _ = run_vcztools(f"query -l {vcz1} --zarr-backend-storage icechunk")
     assert vcztools_out.strip() == "NA00001\nNA00002"
 
-    with icechunk_transaction(vcz1, "main", message="append") as store:
-        append(store, vcz2)
+    append(vcz1, vcz2, zarr_backend_storage="icechunk")
 
     # check samples query
     vcztools_out, _ = run_vcztools(f"query -l {vcz1} --zarr-backend-storage icechunk")
