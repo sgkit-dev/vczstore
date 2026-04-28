@@ -2,29 +2,57 @@
 
 Tools for managing a VCF Zarr store.
 
-### Introduction
+## Introduction
 
 The [VCF Zarr format](https://github.com/sgkit-dev/vcf-zarr-spec/) enables efficient, scalable storage and analysis of large-scale genetic variation data.
 
-VCF Zarr files can be created using [bio2zarr](https://sgkit-dev.github.io/bio2zarr/intro.html). While ideal for one-off conversion of VCF files to Zarr, bio2zarr does not support updating a VCF Zarr store with new samples.
+VCF Zarr files (also known as VCZ files) can be created using [bio2zarr](https://sgkit-dev.github.io/bio2zarr/intro.html). While ideal for one-off conversion of VCF files to Zarr, bio2zarr does not support updating a VCF Zarr with new samples.
 
 Vczstore solves the update use case by providing the following operations
-1. **Append** new samples to a Zarr store
-2. **Remove** samples from a Zarr store
+
+1. **Create** a VCZ store with a known set of variants
+2. **Append** new samples to a VCZ store
+3. **Remove** samples from a VCZ store
 
 The append operation works by appending a VCF Zarr file to the store (which is another VCF Zarr). The file being appended is created using bio2zarr.
 
-### Variant sets
+## Variant sets
 
 Note that only new _samples_ can be added - not new variants - so the store contains a fixed set of variants that must be known before it is created. This is usually not a limitation since the samples come from the same genotype array, or even from the same reference panel for imputed data.
 
-If the source VCFs have different (but typically overlapping) sets of variants, then they need to be harmonised with the full set of variants before being converted to VCF Zarr. This can be accomplished by running `vczstore normalise` before running append.
+If the source VCFs have different (but typically overlapping) sets of variants, then they need to be harmonised with the full set of variants before being converted to VCZ. This can be accomplished by running `vczstore normalise` before running append.
 
 The append operation will perform a check that the contig, position and allele (REF and ALT) fields all match before performing the update. It will fail if there is a mismatch, so samples with inconsistent variant sets cannot be appended. The check is strict - allele ordering must match exactly too.
 
 Multiallelic sites, and split alleles (mutiple records for a site) are both accepted, as long as the ordering is consistent for all source VCFs. 
 
-### Implementation
+## Operations
+
+### Creating a store
+
+A VCZ store is just a VCZ file - typically in cloud object store - so it's possible to create one using bio2zarr (e.g. vcf2zarr). However, when the VCFs being appended contain different variants the store must be created with the full set of variants. This is achieved by merging a small number of VCFs that collectively define the set of variants (e.g. one for each genotype array), using a `vcf-merge-stable` [tool](https://github.com/tomwhite/vcf-merge-stable) that is similar to `bcftools merge`, but provides a stability guarantee that is required when working with Zarr.
+
+After creation the store contains no samples.
+
+![Creating a store](docs/images/vczstore-create.drawio.svg)
+
+### Appending new samples to a store
+
+New samples often arrive as single-sample VCFs. For efficiency, it is best to append in batches that correspond to the sample chunk size (default 10,000), but it is possible to append a smaller number of samples.
+
+The single-sample VCFs are turned into a single VCF using `bcftools merge`. However, note that in this case the samples must all have the same set of variants. If there are VCFs with different variants (e.g. from different genotype arrays) then they must be appended in separate operations.
+
+The `vczstore normalise` step ensures that the VCZ contains the same number of variants as the store (and in the same order), so the new sample data can simply be appended to the end of the genotype arrays.
+
+![Appending new samples to a store](docs/images/vczstore-append.drawio.svg)
+
+### Removing a sample from a store
+
+When a sample is removed, all data for that sample is overwritten with missing values. This is performed directly on the store.
+
+![Removing a sample from a store](docs/images/vczstore-remove.drawio.svg)
+
+## Implementation
 
 The implementation uses zarr-python (version 3) directly to update Zarr chunks in the store. Stores using Zarr format 2 and 3 are supported, as well as Icechunk storage. Using Icechunk means that updates are performed in a transaction so that other users accessing the store will see consistent updates.
 
@@ -39,7 +67,7 @@ For Icechunk-backed stores, local filesystem paths plus `s3://`, `az://`,
 `https://...blob.core.windows.net/...` or `https://...dfs.core.windows.net/...`
 URLs are supported.
 
-### Demo
+## Demo
 
 * Transactions: none
 * Distributed: single process
