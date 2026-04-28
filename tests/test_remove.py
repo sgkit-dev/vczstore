@@ -73,7 +73,7 @@ def test_remove_icechunk(tmp_path):
     pytest.importorskip("icechunk")
     from icechunk import Repository
 
-    from vczstore.icechunk_utils import delete_previous_snapshots, make_icechunk_storage
+    from vczstore.icechunk_utils import make_icechunk_storage
 
     vcz = convert_vcf_to_vcz_icechunk("sample.vcf.gz", tmp_path)
 
@@ -90,8 +90,6 @@ def test_remove_icechunk(tmp_path):
     assert snapshots[1].message == "Repository initialized"
 
     remove(vcz, "NA00002", zarr_backend_storage="icechunk")
-
-    delete_previous_snapshots(repo)
 
     snapshots = [snapshot for snapshot in repo.ancestry(branch="main")]
     assert len(snapshots) == 2
