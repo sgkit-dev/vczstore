@@ -1,8 +1,9 @@
 import logging
+from contextlib import nullcontext
 
 import numpy as np
 import zarr
-from vcztools.utils import array_dims
+from vcztools.utils import array_dims, open_zarr
 
 from vczstore.utils import variant_chunk_slices, variants_progress
 
@@ -46,76 +47,88 @@ def _assert_append_arrays_compatible(name, arr1, arr2):
         )
 
 
-def append(vcz1, vcz2, *, show_progress=False):
+def append(vcz1, vcz2, *, show_progress=False, zarr_backend_storage=None):
     """Append vcz2 to vcz1 in place"""
-    root1 = zarr.open(vcz1, mode="r+")
-    root2 = zarr.open(vcz2, mode="r")
+    if zarr_backend_storage == "icechunk":
+        from vczstore.icechunk_utils import icechunk_transaction
 
-    # check preconditions
-    n_variants1 = root1["variant_contig"].shape[0]
-    n_variants2 = root2["variant_contig"].shape[0]
-    if n_variants1 != n_variants2:
-        raise ValueError(
-            "Stores being appended must have same number of variants. "
-            f"First has {n_variants1}, second has {n_variants2}"
-        )
-    for field in ("contig_id", "variant_contig", "variant_position", "variant_allele"):
-        values1 = root1[field][:]
-        values2 = root2[field][:]
-        if np.any(values1 != values2):
+        cm = icechunk_transaction(vcz1, "main", message="append")
+    else:
+        cm = nullcontext(vcz1)
+    with cm as vcz1:
+        root1 = open_zarr(vcz1, mode="r+", zarr_backend_storage=zarr_backend_storage)
+        root2 = zarr.open(vcz2, mode="r")  # assume local
+
+        # check preconditions
+        n_variants1 = root1["variant_contig"].shape[0]
+        n_variants2 = root2["variant_contig"].shape[0]
+        if n_variants1 != n_variants2:
             raise ValueError(
-                f"Stores being appended must have same values for field '{field}'"
+                "Stores being appended must have same number of variants. "
+                f"First has {n_variants1}, second has {n_variants2}"
             )
-
-    call_arrays = []
-    for var in root1.keys():
-        if var.startswith("call_"):
-            if var not in root2:
+        for field in (
+            "contig_id",
+            "variant_contig",
+            "variant_position",
+            "variant_allele",
+        ):
+            values1 = root1[field][:]
+            values2 = root2[field][:]
+            if np.any(values1 != values2):
                 raise ValueError(
-                    f"append requires {var!r} to be present in both stores"
+                    f"Stores being appended must have same values for field '{field}'"
                 )
-            arr1 = root1[var]
-            arr2 = root2[var]
-            _assert_append_arrays_compatible(var, arr1, arr2)
-            call_arrays.append((var, arr1))
-    _assert_variant_chunk_alignment(
-        call_arrays,
-        variant_chunk_size=root1["variant_contig"].chunks[0],
-        operation="append",
-    )
-    _assert_variant_chunk_alignment(
-        [(var, root2[var]) for var, _ in call_arrays],
-        variant_chunk_size=root2["variant_contig"].chunks[0],
-        operation="append",
-    )
 
-    # append samples
-    sample_id1 = root1["sample_id"]
-    sample_id2 = root2["sample_id"]
+        call_arrays = []
+        for var in root1.keys():
+            if var.startswith("call_"):
+                if var not in root2:
+                    raise ValueError(
+                        f"append requires {var!r} to be present in both stores"
+                    )
+                arr1 = root1[var]
+                arr2 = root2[var]
+                _assert_append_arrays_compatible(var, arr1, arr2)
+                call_arrays.append((var, arr1))
+        _assert_variant_chunk_alignment(
+            call_arrays,
+            variant_chunk_size=root1["variant_contig"].chunks[0],
+            operation="append",
+        )
+        _assert_variant_chunk_alignment(
+            [(var, root2[var]) for var, _ in call_arrays],
+            variant_chunk_size=root2["variant_contig"].chunks[0],
+            operation="append",
+        )
 
-    old_num_samples = sample_id1.shape[0]
-    new_num_samples = old_num_samples + sample_id2.shape[0]
-    new_shape = (new_num_samples,)
-    sample_id1.resize(new_shape)
-    sample_id1[old_num_samples:new_num_samples] = sample_id2[:]
+        # append samples
+        sample_id1 = root1["sample_id"]
+        sample_id2 = root2["sample_id"]
 
-    # resize genotype fields
-    for _, arr in call_arrays:
-        if arr.ndim == 2:
-            new_shape = (arr.shape[0], new_num_samples)
-            arr.resize(new_shape)
-        elif arr.ndim == 3:
-            new_shape = (arr.shape[0], new_num_samples, arr.shape[2])
-            arr.resize(new_shape)
-        else:
-            raise ValueError("unsupported number of array_dims")
+        old_num_samples = sample_id1.shape[0]
+        new_num_samples = old_num_samples + sample_id2.shape[0]
+        new_shape = (new_num_samples,)
+        sample_id1.resize(new_shape)
+        sample_id1[old_num_samples:new_num_samples] = sample_id2[:]
 
-    # append genotype fields
-    with variants_progress(n_variants1, "Append", show_progress) as pbar:
-        for v_sel in variant_chunk_slices(root1):
-            for var in root1.keys():
-                if var.startswith("call_"):
-                    root1[var][v_sel, old_num_samples:new_num_samples, ...] = root2[
-                        var
-                    ][v_sel, ...]
-            pbar.update(v_sel.stop - v_sel.start)
+        # resize genotype fields
+        for _, arr in call_arrays:
+            if arr.ndim == 2:
+                new_shape = (arr.shape[0], new_num_samples)
+                arr.resize(new_shape)
+            elif arr.ndim == 3:
+                new_shape = (arr.shape[0], new_num_samples, arr.shape[2])
+                arr.resize(new_shape)
+            else:
+                raise ValueError("unsupported number of array_dims")
+
+        # append genotype fields
+        with variants_progress(n_variants1, "Append", show_progress) as pbar:
+            for v_sel in variant_chunk_slices(root1):
+                for var in root1.keys():
+                    if var.startswith("call_"):
+                        root1[var][v_sel, old_num_samples:new_num_samples, ...] = root2[
+                            var
+                        ][v_sel, ...]
+                pbar.update(v_sel.stop - v_sel.start)

@@ -30,7 +30,16 @@ from .utils import (
         (["--no-progress"], False),
     ],
 )
-def test_progress_commands_pass_arguments_and_progress_option(
+@pytest.mark.parametrize(
+    ("zarr_backend_storage_args", "expected_zarr_backend_storage"),
+    [
+        ([], None),
+        (["--zarr-backend-storage", "fsspec"], "fsspec"),
+        (["--zarr-backend-storage", "icechunk"], "icechunk"),
+        (["--zarr-backend-storage", "obstore"], "obstore"),
+    ],
+)
+def test_commands_pass_arguments_and_options(
     monkeypatch,
     command,
     command_args,
@@ -38,80 +47,29 @@ def test_progress_commands_pass_arguments_and_progress_option(
     expected_args,
     progress_args,
     expected_progress,
+    zarr_backend_storage_args,
+    expected_zarr_backend_storage,
 ):
     seen = {}
 
-    def fake_function(*args, show_progress=False):
+    def fake_function(*args, show_progress=False, zarr_backend_storage=None):
         seen["args"] = args
         seen["show_progress"] = show_progress
+        seen["zarr_backend_storage"] = zarr_backend_storage
 
     monkeypatch.setattr(cli, function_name, fake_function)
 
     runner = ct.CliRunner()
     result = runner.invoke(
         cli.vczstore_main,
-        [command, *progress_args, *command_args],
+        [command, *progress_args, *zarr_backend_storage_args, *command_args],
         catch_exceptions=False,
     )
 
     assert result.exit_code == 0
     assert seen["args"] == expected_args
     assert seen["show_progress"] is expected_progress
-
-
-@pytest.mark.parametrize(
-    ("command", "command_args", "function_name", "message", "expected_call"),
-    [
-        (
-            "append",
-            ["left", "right"],
-            "append_function",
-            "append",
-            ("transaction-store", "right", True),
-        ),
-        (
-            "remove",
-            ["store", "S1"],
-            "remove_function",
-            "remove",
-            ("transaction-store", "S1", True),
-        ),
-    ],
-)
-def test_mutating_icechunk_commands_use_transaction(
-    monkeypatch, command, command_args, function_name, message, expected_call
-):
-    seen = {}
-
-    class FakeTransaction:
-        def __enter__(self):
-            return "transaction-store"
-
-        def __exit__(self, exc_type, exc, tb):
-            return False
-
-    def fake_transaction(path, branch, *, message):
-        seen["transaction"] = (path, branch, message)
-        return FakeTransaction()
-
-    def fake_function(*args, show_progress=False):
-        seen["call"] = (*args, show_progress)
-
-    monkeypatch.setattr(cli, function_name, fake_function)
-    monkeypatch.setattr(
-        "vczstore.icechunk_utils.icechunk_transaction", fake_transaction
-    )
-
-    runner = ct.CliRunner()
-    result = runner.invoke(
-        cli.vczstore_main,
-        [command, "--zarr-backend-storage", "icechunk", *command_args],
-        catch_exceptions=False,
-    )
-
-    assert result.exit_code == 0
-    assert seen["transaction"] == (command_args[0], "main", message)
-    assert seen["call"] == expected_call
+    assert seen["zarr_backend_storage"] == expected_zarr_backend_storage
 
 
 def test_copy_store_to_icechunk_cli_delegates_to_copy_function(monkeypatch):
@@ -185,7 +143,7 @@ def test_missing_required_arguments_are_rejected(args):
 
 
 def test_cli_reports_operation_value_errors(monkeypatch):
-    def fake_append(vcz1, vcz2, *, show_progress=False):
+    def fake_append(vcz1, vcz2, *, show_progress=False, zarr_backend_storage=None):
         raise ValueError("stores do not line up")
 
     monkeypatch.setattr(cli, "append_function", fake_append)
