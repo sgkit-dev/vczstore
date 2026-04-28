@@ -4,7 +4,7 @@ import numpy as np
 import zarr
 from vcztools.utils import array_dims
 
-from vczstore.utils import variant_chunk_slices, variants_progress
+from vczstore.utils import variants_progress
 
 logger = logging.getLogger(__name__)
 
@@ -110,12 +110,15 @@ def append(vcz1, vcz2, *, show_progress=False):
         else:
             raise ValueError("unsupported number of array_dims")
 
-    # append genotype fields
+    # append genotype fields. Each get/set spans the whole array selection, so Zarr
+    # schedules the underlying chunk I/O internally.
     with variants_progress(n_variants1, "Append", show_progress) as pbar:
-        for v_sel in variant_chunk_slices(root1):
-            for var in root1.keys():
-                if var.startswith("call_"):
-                    root1[var][v_sel, old_num_samples:new_num_samples, ...] = root2[
-                        var
-                    ][v_sel, ...]
-            pbar.update(v_sel.stop - v_sel.start)
+        for var in root1.keys():
+            if var.startswith("call_"):
+                arr = root1[var]
+                sample_selection = slice(old_num_samples, new_num_samples)
+                selection = (slice(None), sample_selection) + (slice(None),) * (
+                    arr.ndim - 2
+                )
+                arr[selection] = root2[var][...]
+        pbar.update(n_variants1)
