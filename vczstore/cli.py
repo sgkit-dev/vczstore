@@ -38,7 +38,7 @@ progress = click.option(
 
 zarr_backend_storage = click.option(
     "--zarr-backend-storage",
-    type=click.Choice(["fsspec", "icechunk"]),
+    type=click.Choice(["fsspec", "obstore", "icechunk"]),
     default=None,
     help="Zarr backend storage to use; one of 'fsspec' (default), 'obstore', "
     "or 'icechunk'.",
