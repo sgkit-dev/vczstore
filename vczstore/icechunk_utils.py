@@ -5,19 +5,6 @@ from zarr.core.sync import sync
 from zarr.storage._common import make_store
 
 
-def delete_previous_snapshots(repo, branch="main"):
-    """
-    Delete all previous snapshots except the current one
-    to avoid retaining data that has been explicitly removed.
-    """
-    # see https://icechunk.io/en/stable/expiration/
-
-    current_snapshot = list(repo.ancestry(branch=branch))[0]
-    expiry_time = current_snapshot.written_at
-    repo.expire_snapshots(older_than=expiry_time)
-    repo.garbage_collect(expiry_time)
-
-
 # inspired by commit f3c123d3a2a94b7f14bc995e3897ee6acc9acbd1 in zarr-python
 def copy_store(source, dest):
     from zarr.core.buffer.core import default_buffer_prototype
@@ -48,11 +35,20 @@ def copy_store_to_icechunk(source, dest):
 
 @contextmanager
 def icechunk_transaction(file_or_url, branch, *, message="update"):
-    """Open an Icechunk store in a transaction, then commit on completion."""
+    """Open an Icechunk store in a transaction, then amend last commit on completion."""
     from icechunk import Repository
 
     icechunk_storage = make_icechunk_storage(file_or_url)
     repo = Repository.open(icechunk_storage)
 
-    with repo.transaction(branch, message=message) as store:
+    with transaction_amend(repo, branch, message=message) as store:
         yield store
+
+
+@contextmanager
+def transaction_amend(repo, branch, message):
+    """Like Icechunk's `transaction` context manager, but using amend not commit."""
+    session = repo.writable_session(branch)
+    yield session.store
+    # use amend to overwrite previous commit
+    session.amend(message=message)
