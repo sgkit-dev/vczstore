@@ -21,6 +21,13 @@ def show_work_summary(work_summary):
     click.echo(output)
 
 
+def call_or_error(function, *args, **kwargs):
+    try:
+        return function(*args, **kwargs)
+    except ValueError as e:
+        raise click.ClickException(str(e)) from e
+
+
 progress = click.option(
     "-P /-Q",
     "--progress/--no-progress",
@@ -31,7 +38,7 @@ progress = click.option(
 
 zarr_backend_storage = click.option(
     "--zarr-backend-storage",
-    type=str,
+    type=click.Choice(["fsspec", "icechunk"]),
     default=None,
     help="Zarr backend storage to use; one of 'fsspec' (default) or 'icechunk'.",
 )
@@ -51,7 +58,7 @@ def append(vcz1, vcz2, progress, zarr_backend_storage):
     else:
         cm = nullcontext(vcz1)
     with cm as vcz1:
-        append_function(vcz1, vcz2, show_progress=progress)
+        call_or_error(append_function, vcz1, vcz2, show_progress=progress)
 
 
 @click.command()
@@ -61,7 +68,7 @@ def append(vcz1, vcz2, progress, zarr_backend_storage):
 @progress
 def normalise(vcz1, vcz2, vcz2_norm, progress):
     """Normalise variants in vcz2 with respect to vcz1 and write to vcz2_norm"""
-    normalise_function(vcz1, vcz2, vcz2_norm, show_progress=progress)
+    call_or_error(normalise_function, vcz1, vcz2, vcz2_norm, show_progress=progress)
 
 
 @click.command()
@@ -78,7 +85,7 @@ def remove(vcz, sample_id, progress, zarr_backend_storage):
     else:
         cm = nullcontext(vcz)
     with cm as vcz:
-        remove_function(vcz, sample_id, show_progress=progress)
+        call_or_error(remove_function, vcz, sample_id, show_progress=progress)
 
 
 @click.command()
@@ -90,7 +97,7 @@ def copy_store_to_icechunk(vcz1, vcz2):
         copy_store_to_icechunk as copy_store_to_icechunk_function,
     )
 
-    copy_store_to_icechunk_function(vcz1, vcz2)
+    call_or_error(copy_store_to_icechunk_function, vcz1, vcz2)
 
 
 @click.group(cls=NaturalOrderGroup, name="vczstore")
