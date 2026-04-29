@@ -55,7 +55,15 @@ zarr_backend_storage = click.option(
     show_default="4 x CPU cores",
     help="Maximum concurrent chunk copy operations.",
 )
-def append(vcz1, vcz2, zarr_backend_storage, io_concurrency):
+@click.option(
+    "--require-direct-copy",
+    is_flag=True,
+    help=(
+        "Fail unless the append can be performed entirely by encoded chunk copy. "
+        "This requires a sample chunk-aligned destination and incoming sample count."
+    ),
+)
+def append(vcz1, vcz2, zarr_backend_storage, io_concurrency, require_direct_copy):
     """Append vcz2 to vcz1 in place"""
     if zarr_backend_storage == "icechunk":
         from vczstore.icechunk_utils import icechunk_transaction
@@ -69,6 +77,7 @@ def append(vcz1, vcz2, zarr_backend_storage, io_concurrency):
             vcz1,
             vcz2,
             io_concurrency=io_concurrency,
+            require_direct_copy=require_direct_copy,
         )
 
 

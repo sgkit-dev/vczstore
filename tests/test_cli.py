@@ -137,19 +137,27 @@ def test_copy_store_to_icechunk_cli_delegates_to_copy_function(monkeypatch):
     assert seen["args"] == ("left", "right")
 
 
-def test_append_cli_passes_io_concurrency(monkeypatch):
+def test_append_cli_passes_io_concurrency_and_direct_copy_flag(monkeypatch):
     seen = {}
 
-    def fake_append(vcz1, vcz2, *, io_concurrency=None):
+    def fake_append(vcz1, vcz2, *, io_concurrency=None, require_direct_copy=False):
         seen["args"] = (vcz1, vcz2)
         seen["io_concurrency"] = io_concurrency
+        seen["require_direct_copy"] = require_direct_copy
 
     monkeypatch.setattr(cli, "append_function", fake_append)
 
     runner = ct.CliRunner()
     result = runner.invoke(
         cli.vczstore_main,
-        ["append", "--io-concurrency", "64", "left", "right"],
+        [
+            "append",
+            "--io-concurrency",
+            "64",
+            "--require-direct-copy",
+            "left",
+            "right",
+        ],
         catch_exceptions=False,
     )
 
@@ -157,6 +165,7 @@ def test_append_cli_passes_io_concurrency(monkeypatch):
     assert seen == {
         "args": ("left", "right"),
         "io_concurrency": 64,
+        "require_direct_copy": True,
     }
 
 

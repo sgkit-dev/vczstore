@@ -352,7 +352,7 @@ def test_append_fails_for_misaligned_source_variant_chunks():
     assert root1_after["call_genotype"].shape == (2, 1, 2)
 
 
-def test_append_fails_before_mutating_when_direct_copy_chunks_differ():
+def test_append_rewrites_when_direct_copy_chunks_differ():
     store1 = _create_minimal_append_store(
         ["S1", "S2"],
         _make_genotype(2, 2),
@@ -364,12 +364,15 @@ def test_append_fails_before_mutating_when_direct_copy_chunks_differ():
         samples_chunk_size=1,
     )
 
-    with pytest.raises(ValueError, match="matching chunks"):
-        append(store1, store2)
+    append(store1, store2)
 
     root1_after = zarr.open_group(store=store1, mode="r")
-    np.testing.assert_array_equal(root1_after["sample_id"][:], np.array(["S1", "S2"]))
-    assert root1_after["call_genotype"].shape == (2, 2, 2)
+    np.testing.assert_array_equal(
+        root1_after["sample_id"][:], np.array(["S1", "S2", "S3", "S4"])
+    )
+    np.testing.assert_array_equal(
+        root1_after["call_genotype"][:, 2:, :], _make_genotype(2, 2)
+    )
 
 
 def test_append_fails_before_mutating_when_secondary_call_array_is_misaligned():
@@ -393,13 +396,14 @@ def test_append_fails_before_mutating_when_secondary_call_array_is_misaligned():
             dimension_names=["variants", "samples"],
         )
 
-    with pytest.raises(ValueError, match="sample chunk-aligned slices"):
-        append(store1, store2)
+    append(store1, store2)
 
     root1_after = zarr.open_group(store=store1, mode="r")
-    np.testing.assert_array_equal(root1_after["sample_id"][:], np.array(["S1", "S2"]))
-    assert root1_after["call_a"].shape == (2, 2, 2)
-    assert root1_after["call_z"].shape == (2, 2)
+    np.testing.assert_array_equal(
+        root1_after["sample_id"][:], np.array(["S1", "S2", "S3", "S4", "S5", "S6"])
+    )
+    np.testing.assert_array_equal(root1_after["call_a"][:, 2:, :], _make_genotype(2, 4))
+    np.testing.assert_array_equal(root1_after["call_z"][:, 2:], np.ones((2, 4)))
 
 
 def test_append_preserves_sparse_source_chunks_as_fill_chunks():
@@ -424,6 +428,52 @@ def test_append_preserves_sparse_source_chunks_as_fill_chunks():
 
     append(store1, store2, io_concurrency=2)
 
+    root = zarr.open_group(store=store1, mode="r")
+    np.testing.assert_array_equal(root["call_genotype"][:, 2:4, :], incoming[:, :2, :])
+    np.testing.assert_array_equal(
+        root["call_genotype"][:, 4:6, :],
+        np.zeros((2, 2, 2), dtype=np.int8),
+    )
+
+
+def test_append_deletes_stale_destination_chunk_when_source_chunk_is_sparse():
+    store1 = _create_minimal_append_store(
+        ["S1", "S2"],
+        _make_genotype(2, 2),
+        samples_chunk_size=2,
+    )
+    incoming = _make_genotype(2, 4)
+    store2 = _create_minimal_append_store(
+        ["S3", "S4", "S5", "S6"],
+        incoming,
+        samples_chunk_size=2,
+    )
+
+    dest_genotype = zarr.open_group(store=store1, mode="r+")["call_genotype"]
+    source_genotype = zarr.open_group(store=store2, mode="r+")["call_genotype"]
+    source_chunk = (
+        source_genotype.store_path
+        / source_genotype.metadata.encode_chunk_key((0, 1, 0))
+    )
+    stale_dest_chunk = (
+        dest_genotype.store_path / dest_genotype.metadata.encode_chunk_key((0, 2, 0))
+    )
+    sync(
+        stale_dest_chunk.set(
+            sync(
+                (
+                    dest_genotype.store_path
+                    / dest_genotype.metadata.encode_chunk_key((0, 0, 0))
+                ).get()
+            )
+        )
+    )
+    sync(source_chunk.delete())
+    assert sync(stale_dest_chunk.get()) is not None
+
+    append(store1, store2, io_concurrency=2)
+
+    assert sync(stale_dest_chunk.get()) is None
     root = zarr.open_group(store=store1, mode="r")
     np.testing.assert_array_equal(root["call_genotype"][:, 2:4, :], incoming[:, :2, :])
     np.testing.assert_array_equal(
@@ -540,7 +590,7 @@ def _create_minimal_append_store(
     return store
 
 
-def test_append_preserves_order_when_destination_is_chunk_aligned():
+def test_append_preserves_order():
     store1 = _create_minimal_append_store(
         ["S1", "S2"],
         _make_genotype(2, 2),
@@ -561,7 +611,7 @@ def test_append_preserves_order_when_destination_is_chunk_aligned():
     np.testing.assert_array_equal(root["call_genotype"][:, 2:, :], _make_genotype(2, 4))
 
 
-def test_append_fills_partial_destination_chunk_from_incoming_tail():
+def test_append_preserves_order_when_destination_is_not_chunk_aligned():
     store1 = _create_minimal_append_store(
         ["S1", "S2", "S3"],
         _make_genotype(2, 3),
@@ -579,7 +629,46 @@ def test_append_fills_partial_destination_chunk_from_incoming_tail():
     root = zarr.open_group(store=store1, mode="r")
     np.testing.assert_array_equal(
         root["sample_id"][:],
-        np.array(["S1", "S2", "S3", "I5", "I1", "I2", "I3", "I4"]),
+        np.array(["S1", "S2", "S3", "I1", "I2", "I3", "I4", "I5"]),
     )
-    expected = np.concatenate([incoming[:, 4:5, :], incoming[:, :4, :]], axis=1)
-    np.testing.assert_array_equal(root["call_genotype"][:, 3:, :], expected)
+    np.testing.assert_array_equal(root["call_genotype"][:, 3:, :], incoming)
+
+
+def test_require_direct_copy_fails_before_mutating_when_destination_is_not_aligned():
+    store1 = _create_minimal_append_store(
+        ["S1", "S2", "S3"],
+        _make_genotype(2, 3),
+        samples_chunk_size=2,
+    )
+    store2 = _create_minimal_append_store(
+        ["I1", "I2", "I3", "I4"],
+        _make_genotype(2, 4),
+        samples_chunk_size=2,
+    )
+
+    with pytest.raises(ValueError, match="direct-only append"):
+        append(store1, store2, require_direct_copy=True)
+
+    root = zarr.open_group(store=store1, mode="r")
+    np.testing.assert_array_equal(root["sample_id"][:], np.array(["S1", "S2", "S3"]))
+    assert root["call_genotype"].shape == (2, 3, 2)
+
+
+def test_require_direct_copy_fails_before_mutating_when_incoming_is_not_aligned():
+    store1 = _create_minimal_append_store(
+        ["S1", "S2"],
+        _make_genotype(2, 2),
+        samples_chunk_size=2,
+    )
+    store2 = _create_minimal_append_store(
+        ["I1", "I2", "I3"],
+        _make_genotype(2, 3),
+        samples_chunk_size=2,
+    )
+
+    with pytest.raises(ValueError, match="direct-only append"):
+        append(store1, store2, require_direct_copy=True)
+
+    root = zarr.open_group(store=store1, mode="r")
+    np.testing.assert_array_equal(root["sample_id"][:], np.array(["S1", "S2"]))
+    assert root["call_genotype"].shape == (2, 2, 2)
