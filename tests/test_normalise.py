@@ -88,16 +88,63 @@ def test_remap_genotypes__multiple_variants():
 def test_index_variants__success_subset():
     vcz1 = make_vcz([0, 0, 0], [1, 2, 3], [["A", "T"], ["C", "G"], ["T", "A"]])
     vcz2 = make_vcz([0, 0], [1, 3], [["A", "T"], ["T", "A"]])
-    index, *_ = index_variants(vcz1, vcz2)
+    index, remap_alleles, allele_mappings, updated_allele_mappings = index_variants(
+        vcz1, vcz2
+    )
+
     assert_array_equal(index, [True, False, True])
+    assert_array_equal(remap_alleles, [False, False, False])
+    assert len(allele_mappings) == 0
+    assert len(updated_allele_mappings) == 0
 
 
 def test_index_variants__success_repeated_site():
     # example where multi-allelic sites are split to biallelic
     vcz1 = make_vcz([0, 0, 0], [1, 1, 3], [["A", "T"], ["A", "C"], ["T", "A"]])
     vcz2 = make_vcz([0, 0], [1, 1], [["A", "T"], ["A", "C"]])
-    index, *_ = index_variants(vcz1, vcz2)
+    index, remap_alleles, allele_mappings, updated_allele_mappings = index_variants(
+        vcz1, vcz2
+    )
     assert_array_equal(index, [True, True, False])
+    assert_array_equal(remap_alleles, [False, False, False])
+    assert len(allele_mappings) == 0
+    assert len(updated_allele_mappings) == 0
+
+
+def test_index_variants__success_overlapping_alt_alleles():
+    vcz1 = make_vcz([0, 0, 0], [1, 2, 3], [["A", "C", "T"], ["C", "G"], ["T", "A"]])
+    vcz2 = make_vcz([0, 0], [1, 3], [["A", "T"], ["T", "A"]])
+    index, remap_alleles, allele_mappings, updated_allele_mappings = index_variants(
+        vcz1, vcz2
+    )
+    assert_array_equal(index, [True, False, True])
+    assert_array_equal(remap_alleles, [True, False, False])
+    assert_array_equal(allele_mappings[0], [0, 2])
+    assert len(updated_allele_mappings) == 0
+
+
+def test_index_variants__success_new_alt_allele():
+    vcz1 = make_vcz([0, 0, 0], [1, 2, 3], [["A", "T"], ["C", "G"], ["T", "A"]])
+    vcz2 = make_vcz([0, 0], [1, 3], [["A", "C", "T"], ["T", "A"]])
+    index, remap_alleles, allele_mappings, updated_allele_mappings = index_variants(
+        vcz1, vcz2
+    )
+    assert_array_equal(index, [True, False, True])
+    assert_array_equal(remap_alleles, [True, False, False])
+    assert_array_equal(allele_mappings[0], [0, 2, 1])
+    assert_array_equal(updated_allele_mappings[0], ["A", "T", "C"])
+
+
+def test_index_variants__success_new_alt_allele_repeated_site():
+    vcz1 = make_vcz([0, 0, 0], [1, 1, 3], [["A", "T"], ["C", "G"], ["T", "A"]])
+    vcz2 = make_vcz([0, 0], [1, 3], [["A", "C", "T"], ["T", "A"]])
+    index, remap_alleles, allele_mappings, updated_allele_mappings = index_variants(
+        vcz1, vcz2
+    )
+    assert_array_equal(index, [True, False, True])
+    assert_array_equal(remap_alleles, [True, False, False])
+    assert_array_equal(allele_mappings[0], [0, 2, 1])
+    assert_array_equal(updated_allele_mappings[0], ["A", "T", "C"])
 
 
 def test_index_variants__order_mismatch():
@@ -116,7 +163,7 @@ def test_index_variants__order_mismatch():
 
 def test_index_variants__new_variant():
     vcz1 = make_vcz([0, 0, 0], [2, 3, 4], [["A", "T"], ["C", "G"], ["T", "A"]])
-    vcz2 = make_vcz([0, 0, 0], [1, 2], [["A", "."], ["A", "T"]])
+    vcz2 = make_vcz([0, 0], [1, 2], [["A", "."], ["A", "T"]])
     with pytest.raises(
         match=re.escape(
             "Variant in vcz2 not found in vcz1 (or vcz2 is out of order): "
@@ -128,10 +175,10 @@ def test_index_variants__new_variant():
 
 def test_index_variants__new_variant_at_end():
     vcz1 = make_vcz([0, 0, 0], [1, 2, 3], [["A", "T"], ["C", "G"], ["T", "A"]])
-    vcz2 = make_vcz([0, 0, 0], [1, 4], [["A", "T"], ["G", "A"]])
+    vcz2 = make_vcz([0, 0], [1, 4], [["A", "T"], ["G", "A"]])
     with pytest.raises(
         match=re.escape(
-            "Variant not in first vcz: "
+            "Variant in vcz2 not found in vcz1 (or vcz2 is out of order): "
             "variant_contig=0, variant_position=4, variant_allele=['G', 'A']"
         )
     ):
@@ -144,11 +191,26 @@ def test_index_variants__new_allele():
     vcz2 = make_vcz([0, 0], [1, 3], [["A", "T"], ["T", "G"]])
     with pytest.raises(
         match=re.escape(
-            "Variant not in first vcz: "
+            "Variant alleles in vcz2 are not equivalent to vcz1: "
             "variant_contig=0, variant_position=3, variant_allele=['T', 'G']"
         )
     ):
         index_variants(vcz1, vcz2)
+
+
+def test_index_variants__int64_position_overflow():
+    # max_contig=1, pos_stride=int64_max+1 → 1 * 2^63 overflows int64
+    vcz = zarr.storage.MemoryStore()
+    root = zarr.create_group(store=vcz)
+    root.create_array(name="contig_id", data=np.array(["0", "1"]))
+    root.create_array(name="variant_contig", data=np.array([0, 1], dtype=np.int32))
+    root.create_array(
+        name="variant_position",
+        data=np.array([0, np.iinfo(np.int64).max], dtype=np.int64),
+    )
+    root.create_array(name="variant_allele", data=np.array([["A", "T"], ["C", "G"]]))
+    with pytest.raises(ValueError, match="overflows int64"):
+        index_variants(vcz, vcz)
 
 
 @pytest.mark.parametrize("variants_chunk_size", [None, 1, 3, 4, 5, 10])

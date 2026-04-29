@@ -32,12 +32,12 @@ def variant_chunk_slices(root, variant_chunks_in_batch=1):
         yield slice(start, end)
 
 
-def variants_progress(n_variants, title, show_progress=False):
+def progress_bar(total, title, show_progress=False, unit="vars"):
     return tqdm.tqdm(
-        total=n_variants,
+        total=total,
         desc=f"{title:>8}",
         unit_scale=True,
-        unit="vars",
+        unit=unit,
         smoothing=0.1,
         disable=not show_progress,
     )
