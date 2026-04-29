@@ -1,9 +1,7 @@
 import numpy as np
 import zarr
 from bio2zarr.zarr_utils import create_empty_group_array, get_compressor_config
-from more_itertools import peekable
 from vcztools.constants import INT_FILL, INT_MISSING, STR_FILL, STR_MISSING
-from vcztools.retrieval import VczReader
 from vcztools.utils import array_dims, search
 
 from vczstore.utils import (
@@ -35,8 +33,6 @@ def normalise(
         chunks_in_batch = 10
     if chunks_in_batch < 1:
         raise ValueError("chunks_in_batch must be greater than or equal to 1")
-
-    index_variants(vcz1, vcz2, show_progress=show_progress, noop=True)
 
     index, remap_alleles, allele_mappings, updated_allele_mappings = index_variants(
         vcz1, vcz2, show_progress=show_progress
@@ -189,7 +185,7 @@ def remap_genotypes(gt, indices, mappings):
                     gt[i, j, k] = mapping[val]
 
 
-def index_variants(vcz1, vcz2, *, show_progress=False, noop=False):
+def index_variants(vcz1, vcz2, *, show_progress=False):
     """Construct an index for variants of vcz2 that are in vcz1.
 
     Returns:
@@ -211,81 +207,121 @@ def index_variants(vcz1, vcz2, *, show_progress=False, noop=False):
     if not np.all(root1["contig_id"][:] == root2["contig_id"][:]):
         raise ValueError("contig_id fields must be identical")
 
-    n_variants = root1["variant_contig"].shape[0]
-    index = np.zeros(n_variants, dtype=bool)
-    remap_alleles = np.zeros(n_variants, dtype=bool)
+    variant_contig1 = root1["variant_contig"][:]
+    variant_position1 = root1["variant_position"][:]
+    variant_allele1 = root1["variant_allele"][:]
+
+    variant_contig2 = root2["variant_contig"][:]
+    variant_position2 = root2["variant_position"][:]
+    variant_allele2 = root2["variant_allele"][:]
+
+    n_variants1 = variant_contig1.shape[0]
+    n_variants2 = variant_contig2.shape[0]
+    index = np.zeros(n_variants1, dtype=bool)
+    remap_alleles = np.zeros(n_variants1, dtype=bool)
     allele_mappings = {}
     updated_allele_mappings = {}
 
-    fields = ["variant_contig", "variant_position", "variant_allele"]
-    it1 = VczReader(root1).variants(fields=fields)
-    it2 = peekable(VczReader(root2).variants(fields=fields))
-
-    with variants_progress(n_variants, "Index", show_progress) as pbar:
-        for i, variant in enumerate(it1):
-            v = it2.peek(None)
-            if v is None:
-                # it2 is exhausted - leave rest of index as False
+    with variants_progress(n_variants1, "Index", show_progress) as pbar:
+        i2 = 0
+        for i1 in range(n_variants1):
+            if i2 >= n_variants2:
+                # vcz2 is exhausted - leave rest of index as False
                 break
-            if not noop:
-                matched, mapping, updated = variants_match(variant, v)
-                if matched:
-                    # advance it2 and continue to next variant in it1
-                    next(it2)
-                    index[i] = True
-                    if mapping is not None:
-                        remap_alleles[i] = True
-                        allele_mappings[i] = mapping
-                    if updated is not None:
-                        updated_allele_mappings[i] = updated
-                else:
-                    if cmp_variant_site(variant, v) > 0:
-                        raise ValueError(
-                            "Variant in vcz2 not found in vcz1 (or vcz2 is out of order): "
-                            f"{variant_repr(v)}"
-                        )
+            matched, mapping, updated = variants_match(
+                variant_contig1,
+                variant_position1,
+                variant_allele1,
+                i1,
+                variant_contig2,
+                variant_position2,
+                variant_allele2,
+                i2,
+            )
+            if matched:
+                # advance vcz2 and continue to next variant in vcz1
+                i2 += 1
+                index[i1] = True
+                if mapping is not None:
+                    remap_alleles[i1] = True
+                    allele_mappings[i1] = mapping
+                if updated is not None:
+                    updated_allele_mappings[i1] = updated
             else:
-                next(it2)
+                if (
+                    cmp_variant_site(
+                        variant_contig1,
+                        variant_position1,
+                        i1,
+                        variant_contig2,
+                        variant_position2,
+                        i2,
+                    )
+                    > 0
+                ):
+                    raise ValueError(
+                        "Variant in vcz2 not found in vcz1 (or vcz2 is out of order): "
+                        f"{variant_repr2(variant_contig2, variant_position2, variant_allele2, i2)}"  # noqa E501
+                    )
             pbar.update()
 
-    # when it1 is exhausted error if there are any variants left in it2
-    v = it2.peek(None)
-    if v is not None:
-        raise ValueError(f"Variant not in first vcz: {variant_repr(v)}")
+    # when vcz1 is exhausted error if there are any variants left in vcz2
+    if i2 < n_variants2:
+        raise ValueError(
+            "Variant not in first vcz: "
+            f"{variant_repr2(variant_contig2, variant_position2, variant_allele2, i2)}"
+        )
 
     return index, remap_alleles, allele_mappings, updated_allele_mappings
 
 
-def cmp_variant_site(variant1, variant2) -> int:
+def cmp_variant_site(
+    variant_contig1, variant_position1, i1, variant_contig2, variant_position2, i2
+) -> int:
     """Compare two variants using the contig and position fields.
 
     The return value is negative if the first variant is before the second,
     zero if they have the same contig and position, and positive if
     the first variant is after the second.
     """
-    c1 = variant1["variant_contig"]
-    c2 = variant2["variant_contig"]
+    c1 = variant_contig1[i1]
+    c2 = variant_contig2[i2]
     if c1 != c2:
         return int(c1 > c2) - int(c1 < c2)
-    p1 = variant1["variant_position"]
-    p2 = variant2["variant_position"]
+    p1 = variant_position1[i1]
+    p2 = variant_position2[i2]
     return int(p1 > p2) - int(p1 < p2)
 
 
 def variants_match(
-    variant1, variant2
+    variant_contig1,
+    variant_position1,
+    variant_allele1,
+    i1,
+    variant_contig2,
+    variant_position2,
+    variant_allele2,
+    i2,
 ) -> tuple[bool, np.ndarray | None, np.ndarray | None]:
     """Test if two variants have identical site (contig, position) and equivalent
     alleles.
 
     Returns (match, mapping, updated) — see variant_alleles_are_equivalent.
     """
-    if cmp_variant_site(variant1, variant2) != 0:
+    if (
+        cmp_variant_site(
+            variant_contig1,
+            variant_position1,
+            i1,
+            variant_contig2,
+            variant_position2,
+            i2,
+        )
+        != 0
+    ):
         return False, None, None
     else:
-        return variant_alleles_are_equivalent(
-            variant1["variant_allele"], variant2["variant_allele"]
-        )
+        return variant_alleles_are_equivalent(variant_allele1[i1], variant_allele2[i2])
 
 
 def variant_alleles_are_equivalent(
@@ -331,4 +367,13 @@ def variant_repr(variant) -> str:
         f"variant_contig={variant['variant_contig']}, "
         f"variant_position={variant['variant_position']}, "
         f"variant_allele={variant['variant_allele'].tolist()}"
+    )
+
+
+def variant_repr2(variant_contig, variant_position, variant_allele, i) -> str:
+    """Simple repr for a variant"""
+    return (
+        f"variant_contig={variant_contig[i]}, "
+        f"variant_position={variant_position[i]}, "
+        f"variant_allele={variant_allele[i].tolist()}"
     )
