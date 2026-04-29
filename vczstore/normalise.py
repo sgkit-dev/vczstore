@@ -14,7 +14,14 @@ from vczstore.utils import (
 )
 
 
-def normalise(vcz1, vcz2, vcz2_norm, haploid_contigs=None, show_progress=False):
+def normalise(
+    vcz1,
+    vcz2,
+    vcz2_norm,
+    haploid_contigs=None,
+    show_progress=False,
+    chunks_in_batch=100,
+):
     """Normalise variants in vcz2 with respect to vcz1 and write to vcz2_norm.
 
     vcz1, vcz2, vcz2_norm are paths or Zarr stores. Variants in vcz1 not present
@@ -113,7 +120,7 @@ def normalise(vcz1, vcz2, vcz2_norm, haploid_contigs=None, show_progress=False):
     remap_idx = np.where(remap_alleles)[0]
 
     # find chunk boundaries
-    chunk_bounds = np.arange(0, n_variants, step=variants_chunk_size)
+    chunk_bounds = np.arange(0, n_variants, step=variants_chunk_size * chunks_in_batch)
     chunk_bounds = np.append(chunk_bounds, [n_variants])
 
     # find chunk offsets for indexes
@@ -123,7 +130,7 @@ def normalise(vcz1, vcz2, vcz2_norm, haploid_contigs=None, show_progress=False):
     allele_mappings_list = list(allele_mappings.values())
 
     with variants_progress(n_variants, "Write", show_progress) as pbar:
-        for i, v_sel in enumerate(variant_chunk_slices(root1)):
+        for i, v_sel in enumerate(variant_chunk_slices(root1, chunks_in_batch)):
             for var, arr in root2.arrays():
                 if var not in norm_vars:
                     continue
