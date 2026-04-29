@@ -107,14 +107,16 @@ def normalise(
 @click.command()
 @click.argument("vcz", type=click.Path())
 @click.argument("sample_id", type=str)
+@variant_chunks_in_batch
 @progress
 @zarr_backend_storage
-def remove(vcz, sample_id, progress, zarr_backend_storage):
+def remove(vcz, sample_id, variant_chunks_in_batch, progress, zarr_backend_storage):
     """Remove a sample from vcz and overwrite with missing data"""
     call_or_error(
         remove_function,
         vcz,
         sample_id,
+        variant_chunks_in_batch=variant_chunks_in_batch,
         show_progress=progress,
         zarr_backend_storage=zarr_backend_storage,
     )

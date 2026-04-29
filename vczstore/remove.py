@@ -28,8 +28,21 @@ def _assert_variant_chunk_alignment(arrays, *, variant_chunk_size, operation):
             )
 
 
-def remove(vcz, sample_id, *, show_progress=False, zarr_backend_storage=None):
+def remove(
+    vcz,
+    sample_id,
+    *,
+    variant_chunks_in_batch=None,
+    show_progress=False,
+    zarr_backend_storage=None,
+):
     """Remove a sample from vcz and overwrite with missing data"""
+
+    if variant_chunks_in_batch is None:
+        variant_chunks_in_batch = 10
+    if variant_chunks_in_batch < 1:
+        raise ValueError("variant_chunks_in_batch must be greater than or equal to 1")
+
     if zarr_backend_storage == "icechunk":
         from vczstore.icechunk_utils import icechunk_transaction
 
@@ -60,7 +73,7 @@ def remove(vcz, sample_id, *, show_progress=False, zarr_backend_storage=None):
         # overwrite sample data
         root["sample_id"][sample_selection] = ""
         with variants_progress(n_variants, "Remove", show_progress) as pbar:
-            for v_sel in variant_chunk_slices(root):
+            for v_sel in variant_chunk_slices(root, variant_chunks_in_batch):
                 for var in root.keys():
                     arr = root[var]
                     if (
