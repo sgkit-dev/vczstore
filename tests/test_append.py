@@ -26,6 +26,7 @@
 import numpy as np
 import pytest
 import zarr
+from numpy.testing import assert_array_equal
 from zarr.core.sync import sync
 
 from vczstore.append import append
@@ -39,9 +40,73 @@ from .utils import (
 )
 
 
+def test_append():
+    vcz1 = make_vcz(
+        variant_contig=[0, 0, 0, 0],
+        variant_position=[1, 2, 3, 4],
+        alleles=[
+            ["A", "T"],
+            ["A", "C"],
+            ["A", "C"],
+            ["A", "T", "C"],
+        ],
+        sample_id=["S1", "S2"],
+        call_genotype=[
+            [[0, 0], [1, 0]],
+            [[0, 1], [0, 0]],
+            [[0, 0], [1, 1]],
+            [[1, 1], [0, 1]],
+        ],
+    )
+
+    vcz2 = make_vcz(
+        variant_contig=[0, 0, 0, 0],
+        variant_position=[1, 2, 3, 4],
+        alleles=[
+            ["A", "T"],
+            ["A", "C"],
+            ["A", "C"],
+            ["A", "T", "C"],
+        ],
+        sample_id=["S3"],
+        call_genotype=[
+            [[1, 1]],
+            [[0, 1]],
+            [[0, 1]],
+            [[0, 2]],
+        ],
+    )
+
+    append(vcz1, vcz2)
+
+    root1 = zarr.open(vcz1)
+
+    assert_array_equal(root1["variant_contig"][:], [0, 0, 0, 0])
+    assert_array_equal(root1["variant_position"][:], [1, 2, 3, 4])
+    assert_array_equal(
+        root1["variant_allele"][:],
+        [
+            ["A", "T", ""],
+            ["A", "C", ""],
+            ["A", "C", ""],
+            ["A", "T", "C"],
+        ],
+    )
+    assert_array_equal(root1["sample_id"][:], ["S1", "S2", "S3"])
+    assert_array_equal(
+        root1["call_genotype"][:],
+        [
+            [[0, 0], [1, 0], [1, 1]],
+            [[0, 1], [0, 0], [0, 1]],
+            [[0, 0], [1, 1], [0, 1]],
+            [[1, 1], [0, 1], [0, 2]],
+        ],
+    )
+
+
 @pytest.mark.parametrize("samples_chunk_size", [1, 2, 4])
 @pytest.mark.parametrize("zarr_backend_storage", [None, "obstore"])
-def test_append(tmp_path, samples_chunk_size, zarr_backend_storage):
+def test_append_compare_vcf(tmp_path, samples_chunk_size, zarr_backend_storage):
     vcz1 = convert_vcf_to_vcz(
         "sample-part1.vcf.gz", tmp_path, samples_chunk_size=samples_chunk_size
     )
