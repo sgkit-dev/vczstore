@@ -19,8 +19,8 @@ def normalise(
     vcz2,
     vcz2_norm,
     haploid_contigs=None,
+    chunks_in_batch=None,
     show_progress=False,
-    chunks_in_batch=100,
 ):
     """Normalise variants in vcz2 with respect to vcz1 and write to vcz2_norm.
 
@@ -30,6 +30,12 @@ def normalise(
     haploid_contigs is a list of contig IDs for haploid contigs, which defaults
     to ["X", "Y", "MT"]
     """
+
+    if chunks_in_batch is None:
+        chunks_in_batch = 10
+    if chunks_in_batch < 1:
+        raise ValueError("chunks_in_batch must be greater than or equal to 1")
+
     index, remap_alleles, allele_mappings, updated_allele_mappings = index_variants(
         vcz1, vcz2, show_progress=show_progress
     )

@@ -43,6 +43,14 @@ zarr_backend_storage = click.option(
     help="Zarr backend storage to use; one of 'fsspec' (default) or 'icechunk'.",
 )
 
+chunks_in_batch = click.option(
+    "--chunks-in-batch",
+    type=click.IntRange(min=1),
+    default=None,
+    show_default="10",
+    help="The number of variant chunks to process in each batch",
+)
+
 
 @click.command()
 @click.argument("vcz1", type=click.Path())
@@ -65,10 +73,18 @@ def append(vcz1, vcz2, progress, zarr_backend_storage):
 @click.argument("vcz1", type=click.Path())
 @click.argument("vcz2", type=click.Path())
 @click.argument("vcz2_norm", type=click.Path())
+@chunks_in_batch
 @progress
-def normalise(vcz1, vcz2, vcz2_norm, progress):
+def normalise(vcz1, vcz2, vcz2_norm, chunks_in_batch, progress):
     """Normalise variants in vcz2 with respect to vcz1 and write to vcz2_norm"""
-    call_or_error(normalise_function, vcz1, vcz2, vcz2_norm, show_progress=progress)
+    call_or_error(
+        normalise_function,
+        vcz1,
+        vcz2,
+        vcz2_norm,
+        chunks_in_batch=chunks_in_batch,
+        show_progress=progress,
+    )
 
 
 @click.command()

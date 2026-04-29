@@ -41,7 +41,7 @@ def test_progress_commands_pass_arguments_and_progress_option(
 ):
     seen = {}
 
-    def fake_function(*args, show_progress=False):
+    def fake_function(*args, show_progress=False, **kwargs):
         seen["args"] = args
         seen["show_progress"] = show_progress
 

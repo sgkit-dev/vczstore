@@ -152,7 +152,7 @@ def test_index_variants__new_allele():
 
 
 @pytest.mark.parametrize("variants_chunk_size", [None, 1, 3, 4, 5, 10])
-@pytest.mark.parametrize("chunks_in_batch", [1, 2, 10])
+@pytest.mark.parametrize("chunks_in_batch", [None, 1, 2])
 def test_normalise(variants_chunk_size, chunks_in_batch):
     vcz1 = make_vcz(
         variant_contig=[0, 0, 0, 0, 0, 0, 0, 0, 0],
