@@ -1,25 +1,8 @@
 from contextlib import contextmanager
 
 from vcztools.utils import make_icechunk_storage
-from zarr.core.sync import sync
-from zarr.storage._common import make_store
 
-
-# inspired by commit f3c123d3a2a94b7f14bc995e3897ee6acc9acbd1 in zarr-python
-def copy_store(source, dest):
-    from zarr.core.buffer.core import default_buffer_prototype
-    from zarr.testing.stateful import SyncStoreWrapper
-
-    # ensure source and dest are both stores
-    source = sync(make_store(source))
-    dest = sync(make_store(dest))
-
-    s = SyncStoreWrapper(source)
-    d = SyncStoreWrapper(dest)
-    # need reverse=True to create zarr.json before chunks (otherwise icechunk complains)
-    for source_key in sorted(s.list(), reverse=True):
-        buffer = s.get(source_key, default_buffer_prototype())
-        d.set(source_key, buffer)
+from vczstore.utils import copy_store
 
 
 def copy_store_to_icechunk(source, dest):
