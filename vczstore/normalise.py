@@ -36,6 +36,8 @@ def normalise(
     if chunks_in_batch < 1:
         raise ValueError("chunks_in_batch must be greater than or equal to 1")
 
+    index_variants(vcz1, vcz2, show_progress=show_progress, noop=True)
+
     index, remap_alleles, allele_mappings, updated_allele_mappings = index_variants(
         vcz1, vcz2, show_progress=show_progress
     )
@@ -187,7 +189,7 @@ def remap_genotypes(gt, indices, mappings):
                     gt[i, j, k] = mapping[val]
 
 
-def index_variants(vcz1, vcz2, *, show_progress=False):
+def index_variants(vcz1, vcz2, *, show_progress=False, noop=False):
     """Construct an index for variants of vcz2 that are in vcz1.
 
     Returns:
@@ -225,22 +227,25 @@ def index_variants(vcz1, vcz2, *, show_progress=False):
             if v is None:
                 # it2 is exhausted - leave rest of index as False
                 break
-            matched, mapping, updated = variants_match(variant, v)
-            if matched:
-                # advance it2 and continue to next variant in it1
-                next(it2)
-                index[i] = True
-                if mapping is not None:
-                    remap_alleles[i] = True
-                    allele_mappings[i] = mapping
-                if updated is not None:
-                    updated_allele_mappings[i] = updated
+            if not noop:
+                matched, mapping, updated = variants_match(variant, v)
+                if matched:
+                    # advance it2 and continue to next variant in it1
+                    next(it2)
+                    index[i] = True
+                    if mapping is not None:
+                        remap_alleles[i] = True
+                        allele_mappings[i] = mapping
+                    if updated is not None:
+                        updated_allele_mappings[i] = updated
+                else:
+                    if cmp_variant_site(variant, v) > 0:
+                        raise ValueError(
+                            "Variant in vcz2 not found in vcz1 (or vcz2 is out of order): "
+                            f"{variant_repr(v)}"
+                        )
             else:
-                if cmp_variant_site(variant, v) > 0:
-                    raise ValueError(
-                        "Variant in vcz2 not found in vcz1 (or vcz2 is out of order): "
-                        f"{variant_repr(v)}"
-                    )
+                next(it2)
             pbar.update()
 
     # when it1 is exhausted error if there are any variants left in it2
