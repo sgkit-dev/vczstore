@@ -2,18 +2,21 @@ import numpy as np
 import zarr
 from bio2zarr.zarr_utils import create_empty_group_array, get_compressor_config
 from more_itertools import peekable
-from vcztools.constants import STR_FILL, STR_MISSING
+from vcztools.constants import INT_FILL, INT_MISSING, STR_FILL, STR_MISSING
 from vcztools.retrieval import VczReader
 from vcztools.utils import array_dims, search
 
 from vczstore.utils import missing_val, variant_chunk_slices, variants_progress
 
 
-def normalise(vcz1, vcz2, vcz2_norm, show_progress=False):
+def normalise(vcz1, vcz2, vcz2_norm, haploid_contigs=None, show_progress=False):
     """Normalise variants in vcz2 with respect to vcz1 and write to vcz2_norm.
 
     vcz1, vcz2, vcz2_norm are paths or Zarr stores. Variants in vcz1 not present
     in vcz2 are filled with missing values.
+
+    haploid_contigs is a list of contig IDs for haploid contigs, which defaults
+    to ["X", "Y", "MT"]
     """
     index, remap_alleles, allele_mappings, updated_allele_mappings = index_variants(
         vcz1, vcz2, show_progress=show_progress
@@ -29,6 +32,21 @@ def normalise(vcz1, vcz2, vcz2_norm, show_progress=False):
     n_variants = root1["variant_contig"].shape[0]
     variants_chunk_size = root1["variant_contig"].chunks[0]
     norm_root.attrs.update(root2.attrs)
+
+    if haploid_contigs is None:
+        haploid_contigs = ["X", "Y", "MT"]
+
+    if "call_genotype" in root2:
+        ploidy = root2["call_genotype"].shape[2]
+        contig_id = root1["contig_id"][:]
+        contig_ploidy = np.array(
+            [
+                1 if contig_id[i] in haploid_contigs else ploidy
+                for i in range(contig_id.shape[0])
+            ]
+        )
+    else:
+        contig_ploidy = None
 
     # create empty arrays
     for var in root2.keys():
@@ -106,17 +124,32 @@ def normalise(vcz1, vcz2, vcz2_norm, show_progress=False):
                     arr = root2[var]
                     chunk_n = v_sel.stop - v_sel.start
                     shape = (chunk_n,) + arr.shape[1:]
-                    data = np.full(shape, fill_value=missing_val(arr), dtype=arr.dtype)
-
-                    match_sl = slice(match_starts[i], match_starts[i + 1])
-                    local_idx = match_idx[match_sl] - v_sel.start
-                    data[local_idx, ...] = arr[match_sl, ...]
 
                     if var == "call_genotype":
+                        data = np.full(shape, fill_value=INT_MISSING, dtype=arr.dtype)
+                        if contig_ploidy is not None:
+                            variant_ploidy = contig_ploidy[
+                                root1["variant_contig"][v_sel]
+                            ]
+                            for ploidy in range(1, data.shape[-1]):
+                                ploidy_mask = variant_ploidy == ploidy
+                                data[ploidy_mask, :, ploidy:] = INT_FILL
+                        match_sl = slice(match_starts[i], match_starts[i + 1])
+                        local_idx = match_idx[match_sl] - v_sel.start
+                        data[local_idx, ...] = arr[match_sl, ...]
+
                         remap_sl = slice(remap_starts[i], remap_starts[i + 1])
                         local_remap_idx = remap_idx[remap_sl] - v_sel.start
                         chunk_maps = allele_mappings_list[remap_sl]
                         remap_genotypes(data, local_remap_idx, chunk_maps)
+
+                    else:
+                        data = np.full(
+                            shape, fill_value=missing_val(arr), dtype=arr.dtype
+                        )
+                        match_sl = slice(match_starts[i], match_starts[i + 1])
+                        local_idx = match_idx[match_sl] - v_sel.start
+                        data[local_idx, ...] = arr[match_sl, ...]
 
                     norm_root[var][v_sel] = data
                 else:
