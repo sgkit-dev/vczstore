@@ -152,7 +152,8 @@ def test_index_variants__new_allele():
 
 
 @pytest.mark.parametrize("variants_chunk_size", [None, 1, 3, 4, 5, 10])
-def test_normalise(variants_chunk_size):
+@pytest.mark.parametrize("variant_chunks_in_batch", [None, 1, 2])
+def test_normalise(variants_chunk_size, variant_chunks_in_batch):
     vcz1 = make_vcz(
         variant_contig=[0, 0, 0, 0, 0, 0, 0, 0, 0],
         variant_position=[1, 2, 3, 4, 4, 5, 5, 6, 7],
@@ -187,7 +188,7 @@ def test_normalise(variants_chunk_size):
 
     vcz2_norm = zarr.storage.MemoryStore()
 
-    normalise(vcz1, vcz2, vcz2_norm)
+    normalise(vcz1, vcz2, vcz2_norm, variant_chunks_in_batch=variant_chunks_in_batch)
 
     root1 = zarr.open(vcz1)
     root_norm = zarr.open(vcz2_norm)
