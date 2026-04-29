@@ -1,10 +1,13 @@
+import asyncio
 import logging
+import os
+from contextlib import suppress
+from itertools import product
 
 import numpy as np
 import zarr
 from vcztools.utils import array_dims
-
-from vczstore.utils import variant_chunk_slices, variants_progress
+from zarr.core.sync import sync
 
 logger = logging.getLogger(__name__)
 
@@ -24,6 +27,13 @@ def _assert_variant_chunk_alignment(arrays, *, variant_chunk_size, operation):
 def _assert_append_arrays_compatible(name, arr1, arr2):
     dims1 = array_dims(arr1)
     dims2 = array_dims(arr2)
+    if dims1 is None or len(dims1) < 2 or tuple(dims1[:2]) != (
+        "variants",
+        "samples",
+    ):
+        raise ValueError(
+            f"append requires {name!r} to use variants/samples dimensions"
+        )
     if dims1 != dims2:
         raise ValueError(
             f"append requires {name!r} to have matching dimensions. "
@@ -46,8 +56,83 @@ def _assert_append_arrays_compatible(name, arr1, arr2):
         )
 
 
-def append(vcz1, vcz2, *, show_progress=False):
+def _assert_can_copy_encoded_chunks(name, arr1, arr2):
+    if arr1.chunks != arr2.chunks:
+        raise ValueError(
+            "direct append requires matching chunks for encoded chunk copy. "
+            f"{name!r} has chunks {arr1.chunks} and {arr2.chunks}"
+        )
+    # Shape changes during append and attributes do not affect encoded chunk bytes.
+    if (
+        {**arr1.metadata.to_dict(), "shape": None, "attributes": None}
+        != {**arr2.metadata.to_dict(), "shape": None, "attributes": None}
+    ):
+        raise ValueError(
+            "direct append requires matching encoded chunk metadata. "
+            f"{name!r} cannot be copied chunk-by-chunk"
+        )
+
+
+async def _copy_encoded_chunks(
+    dst_arr, src_arr, *, src_start, dst_start, count, io_concurrency
+):
+    def chunk_pairs():
+        for variant_chunk in range(src_arr.cdata_shape[0]):
+            for sample_offset in range(count // dst_arr.chunks[1]):
+                for extra_chunk_coords in product(
+                    *[range(n) for n in src_arr.cdata_shape[2:]]
+                ):
+                    src_coords = (
+                        variant_chunk,
+                        src_start // src_arr.chunks[1] + sample_offset,
+                        *extra_chunk_coords,
+                    )
+                    dst_coords = (
+                        variant_chunk,
+                        dst_start // dst_arr.chunks[1] + sample_offset,
+                        *extra_chunk_coords,
+                    )
+                    yield src_coords, dst_coords
+
+    async def copy_chunk(src_coords, dst_coords):
+        src_key = src_arr.store_path / src_arr.metadata.encode_chunk_key(src_coords)
+        dst_key = dst_arr.store_path / dst_arr.metadata.encode_chunk_key(dst_coords)
+        buf = await src_key.get()
+        if buf is None:
+            with suppress(FileNotFoundError):
+                await dst_key.delete()
+        else:
+            await dst_key.set(buf)
+
+    async def wait_for_one(tasks):
+        done, tasks = await asyncio.wait(tasks, return_when=asyncio.FIRST_COMPLETED)
+        for task in done:
+            task.result()
+        return tasks
+
+    tasks = set()
+    try:
+        for src_coords, dst_coords in chunk_pairs():
+            if len(tasks) >= io_concurrency:
+                tasks = await wait_for_one(tasks)
+            tasks.add(asyncio.create_task(copy_chunk(src_coords, dst_coords)))
+        while tasks:
+            # Surface errors as soon as they happen
+            tasks = await wait_for_one(tasks)
+    # Cancel remaining work on error
+    except Exception:
+        for task in tasks:
+            task.cancel()
+        await asyncio.gather(*tasks, return_exceptions=True)
+        raise
+
+
+def append(vcz1, vcz2, *, io_concurrency=None):
     """Append vcz2 to vcz1 in place"""
+    if io_concurrency is None:
+        io_concurrency = (os.cpu_count() or 1) * 4
+    if io_concurrency < 1:
+        raise ValueError("io_concurrency must be greater than or equal to 1")
     root1 = zarr.open(vcz1, mode="r+")
     root2 = zarr.open(vcz2, mode="r")
 
@@ -60,9 +145,7 @@ def append(vcz1, vcz2, *, show_progress=False):
             f"First has {n_variants1}, second has {n_variants2}"
         )
     for field in ("contig_id", "variant_contig", "variant_position", "variant_allele"):
-        values1 = root1[field][:]
-        values2 = root2[field][:]
-        if np.any(values1 != values2):
+        if not np.array_equal(root1[field][:], root2[field][:]):
             raise ValueError(
                 f"Stores being appended must have same values for field '{field}'"
             )
@@ -77,14 +160,14 @@ def append(vcz1, vcz2, *, show_progress=False):
             arr1 = root1[var]
             arr2 = root2[var]
             _assert_append_arrays_compatible(var, arr1, arr2)
-            call_arrays.append((var, arr1))
+            call_arrays.append((var, arr1, arr2))
     _assert_variant_chunk_alignment(
-        call_arrays,
+        [(var, arr1) for var, arr1, _ in call_arrays],
         variant_chunk_size=root1["variant_contig"].chunks[0],
         operation="append",
     )
     _assert_variant_chunk_alignment(
-        [(var, root2[var]) for var, _ in call_arrays],
+        [(var, arr2) for var, _, arr2 in call_arrays],
         variant_chunk_size=root2["variant_contig"].chunks[0],
         operation="append",
     )
@@ -94,28 +177,78 @@ def append(vcz1, vcz2, *, show_progress=False):
     sample_id2 = root2["sample_id"]
 
     old_num_samples = sample_id1.shape[0]
-    new_num_samples = old_num_samples + sample_id2.shape[0]
-    new_shape = (new_num_samples,)
-    sample_id1.resize(new_shape)
-    sample_id1[old_num_samples:new_num_samples] = sample_id2[:]
+    incoming_num_samples = sample_id2.shape[0]
+    new_num_samples = old_num_samples + incoming_num_samples
+    samples_chunk_size = call_arrays[0][1].chunks[1]
+
+    # Distance from the current sample count to the next sample chunk boundary.
+    gap_count = (-old_num_samples) % samples_chunk_size
+    if gap_count >= incoming_num_samples:
+        gap_count = 0
+
+    direct_count = (
+        (incoming_num_samples - gap_count) // samples_chunk_size
+    ) * samples_chunk_size
+    tail_count = incoming_num_samples - gap_count - direct_count
+
+    if direct_count:
+        for name, arr1, arr2 in call_arrays:
+            sample_chunk_size = arr1.chunks[1]
+            if (
+                direct_count % sample_chunk_size
+                or (old_num_samples + gap_count) % sample_chunk_size
+            ):
+                raise ValueError(
+                    "direct append requires sample chunk-aligned slices for encoded "
+                    f"chunk copy. {name!r} uses sample chunks of size "
+                    f"{sample_chunk_size}"
+                )
+            _assert_can_copy_encoded_chunks(name, arr1, arr2)
+
+    sample_id1.resize((new_num_samples,))
 
     # resize genotype fields
-    for _, arr in call_arrays:
-        if arr.ndim == 2:
-            new_shape = (arr.shape[0], new_num_samples)
-            arr.resize(new_shape)
-        elif arr.ndim == 3:
-            new_shape = (arr.shape[0], new_num_samples, arr.shape[2])
-            arr.resize(new_shape)
-        else:
-            raise ValueError("unsupported number of array_dims")
+    for _, arr, _ in call_arrays:
+        arr.resize((arr.shape[0], new_num_samples, *arr.shape[2:]))
 
-    # append genotype fields
-    with variants_progress(n_variants1, "Append", show_progress) as pbar:
-        for v_sel in variant_chunk_slices(root1):
-            for var in root1.keys():
-                if var.startswith("call_"):
-                    root1[var][v_sel, old_num_samples:new_num_samples, ...] = root2[
-                        var
-                    ][v_sel, ...]
-            pbar.update(v_sel.stop - v_sel.start)
+    # TODO This should probably work in sections for memory friendlyness.
+    def append_rewrite(src_start, dst_start, count):
+        sample_id1[dst_start : dst_start + count] = sample_id2[
+            src_start : src_start + count
+        ]
+        for _, arr1, arr2 in call_arrays:
+            arr1[:, dst_start : dst_start + count, ...] = arr2[
+                :, src_start : src_start + count, ...
+            ]
+
+    def append_direct(src_start, dst_start, count):
+        sample_id1[dst_start : dst_start + count] = sample_id2[
+            src_start : src_start + count
+        ]
+        for _, arr1, arr2 in call_arrays:
+            sync(
+                _copy_encoded_chunks(
+                    arr1,
+                    arr2,
+                    src_start=src_start,
+                    dst_start=dst_start,
+                    count=count,
+                    io_concurrency=io_concurrency,
+                )
+            )
+
+    with zarr.config.set({"async.concurrency": io_concurrency}):
+        if gap_count:
+            # Use incoming tail samples to fill the destination chunk gap, keeping the
+            # remaining incoming prefix sample-chunk aligned for encoded chunk copy.
+            append_rewrite(incoming_num_samples - gap_count, old_num_samples, gap_count)
+
+        if direct_count:
+            append_direct(0, old_num_samples + gap_count, direct_count)
+
+        if tail_count:
+            append_rewrite(
+                direct_count,
+                old_num_samples + gap_count + direct_count,
+                tail_count,
+            )

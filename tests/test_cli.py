@@ -13,7 +13,6 @@ from .utils import (
 @pytest.mark.parametrize(
     ("command", "command_args", "function_name", "expected_args"),
     [
-        ("append", ["left", "right"], "append_function", ("left", "right")),
         (
             "normalise",
             ["left", "right", "out"],
@@ -41,7 +40,7 @@ def test_progress_commands_pass_arguments_and_progress_option(
 ):
     seen = {}
 
-    def fake_function(*args, show_progress=False):
+    def fake_function(*args, show_progress=False, **kwargs):
         seen["args"] = args
         seen["show_progress"] = show_progress
 
@@ -67,7 +66,7 @@ def test_progress_commands_pass_arguments_and_progress_option(
             ["left", "right"],
             "append_function",
             "append",
-            ("transaction-store", "right", True),
+            ("transaction-store", "right"),
         ),
         (
             "remove",
@@ -94,8 +93,11 @@ def test_mutating_icechunk_commands_use_transaction(
         seen["transaction"] = (path, branch, message)
         return FakeTransaction()
 
-    def fake_function(*args, show_progress=False):
-        seen["call"] = (*args, show_progress)
+    def fake_function(*args, show_progress=False, **kwargs):
+        if function_name == "append_function":
+            seen["call"] = args
+        else:
+            seen["call"] = (*args, show_progress)
 
     monkeypatch.setattr(cli, function_name, fake_function)
     monkeypatch.setattr(
@@ -133,6 +135,29 @@ def test_copy_store_to_icechunk_cli_delegates_to_copy_function(monkeypatch):
 
     assert result.exit_code == 0
     assert seen["args"] == ("left", "right")
+
+
+def test_append_cli_passes_io_concurrency(monkeypatch):
+    seen = {}
+
+    def fake_append(vcz1, vcz2, *, io_concurrency=None):
+        seen["args"] = (vcz1, vcz2)
+        seen["io_concurrency"] = io_concurrency
+
+    monkeypatch.setattr(cli, "append_function", fake_append)
+
+    runner = ct.CliRunner()
+    result = runner.invoke(
+        cli.vczstore_main,
+        ["append", "--io-concurrency", "64", "left", "right"],
+        catch_exceptions=False,
+    )
+
+    assert result.exit_code == 0
+    assert seen == {
+        "args": ("left", "right"),
+        "io_concurrency": 64,
+    }
 
 
 def test_help_lists_commands_in_natural_order():
@@ -185,7 +210,7 @@ def test_missing_required_arguments_are_rejected(args):
 
 
 def test_cli_reports_operation_value_errors(monkeypatch):
-    def fake_append(vcz1, vcz2, *, show_progress=False):
+    def fake_append(vcz1, vcz2, **kwargs):
         raise ValueError("stores do not line up")
 
     monkeypatch.setattr(cli, "append_function", fake_append)
@@ -204,7 +229,7 @@ def test_append_cli_updates_vcz_store(tmp_path):
     runner = ct.CliRunner()
     result = runner.invoke(
         cli.vczstore_main,
-        ["append", "--no-progress", str(vcz1), str(vcz2)],
+        ["append", str(vcz1), str(vcz2)],
         catch_exceptions=False,
     )
 
@@ -236,7 +261,7 @@ def test_append_cli_reports_real_validation_error(tmp_path):
     runner = ct.CliRunner()
     result = runner.invoke(
         cli.vczstore_main,
-        ["append", "--no-progress", str(vcz1), str(vcz2)],
+        ["append", str(vcz1), str(vcz2)],
     )
 
     assert result.exit_code == 1

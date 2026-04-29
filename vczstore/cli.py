@@ -47,9 +47,15 @@ zarr_backend_storage = click.option(
 @click.command()
 @click.argument("vcz1", type=click.Path())
 @click.argument("vcz2", type=click.Path())
-@progress
 @zarr_backend_storage
-def append(vcz1, vcz2, progress, zarr_backend_storage):
+@click.option(
+    "--io-concurrency",
+    type=click.IntRange(min=1),
+    default=None,
+    show_default="4 x CPU cores",
+    help="Maximum concurrent chunk copy operations.",
+)
+def append(vcz1, vcz2, zarr_backend_storage, io_concurrency):
     """Append vcz2 to vcz1 in place"""
     if zarr_backend_storage == "icechunk":
         from vczstore.icechunk_utils import icechunk_transaction
@@ -58,7 +64,12 @@ def append(vcz1, vcz2, progress, zarr_backend_storage):
     else:
         cm = nullcontext(vcz1)
     with cm as vcz1:
-        call_or_error(append_function, vcz1, vcz2, show_progress=progress)
+        call_or_error(
+            append_function,
+            vcz1,
+            vcz2,
+            io_concurrency=io_concurrency,
+        )
 
 
 @click.command()
