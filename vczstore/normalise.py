@@ -20,6 +20,7 @@ def normalise(
     vcz2_norm,
     *,
     haploid_contigs=None,
+    variant_chunks_in_batch=None,
     show_progress=False,
     zarr_backend_storage=None,
 ):
@@ -31,6 +32,12 @@ def normalise(
     haploid_contigs is a list of contig IDs for haploid contigs, which defaults
     to ["X", "Y", "MT"]
     """
+
+    if variant_chunks_in_batch is None:
+        variant_chunks_in_batch = 10
+    if variant_chunks_in_batch < 1:
+        raise ValueError("variant_chunks_in_batch must be greater than or equal to 1")
+
     index, remap_alleles, allele_mappings, updated_allele_mappings = index_variants(
         vcz1, vcz2, show_progress=show_progress
     )
@@ -122,7 +129,9 @@ def normalise(
     remap_idx = np.where(remap_alleles)[0]
 
     # find chunk boundaries
-    chunk_bounds = np.arange(0, n_variants, step=variants_chunk_size)
+    chunk_bounds = np.arange(
+        0, n_variants, step=variants_chunk_size * variant_chunks_in_batch
+    )
     chunk_bounds = np.append(chunk_bounds, [n_variants])
 
     # find chunk offsets for indexes
@@ -132,7 +141,7 @@ def normalise(
     allele_mappings_list = list(allele_mappings.values())
 
     with variants_progress(n_variants, "Write", show_progress) as pbar:
-        for i, v_sel in enumerate(variant_chunk_slices(root1)):
+        for i, v_sel in enumerate(variant_chunk_slices(root1, variant_chunks_in_batch)):
             for var, arr in root2.arrays():
                 if var not in norm_vars:
                     continue

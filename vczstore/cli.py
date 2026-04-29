@@ -42,6 +42,14 @@ zarr_backend_storage = click.option(
     "or 'icechunk'.",
 )
 
+variant_chunks_in_batch = click.option(
+    "--variant-chunks-in-batch",
+    type=click.IntRange(min=1),
+    default=None,
+    show_default="10",
+    help="The number of variant chunks to process in each batch",
+)
+
 
 @click.command()
 @click.argument("vcz1", type=click.Path())
@@ -78,15 +86,19 @@ def append(vcz1, vcz2, zarr_backend_storage, io_concurrency, require_direct_copy
 @click.argument("vcz1", type=click.Path())
 @click.argument("vcz2", type=click.Path())
 @click.argument("vcz2_norm", type=click.Path())
+@variant_chunks_in_batch
 @progress
 @zarr_backend_storage
-def normalise(vcz1, vcz2, vcz2_norm, progress, zarr_backend_storage):
+def normalise(
+    vcz1, vcz2, vcz2_norm, variant_chunks_in_batch, progress, zarr_backend_storage
+):
     """Normalise variants in vcz2 with respect to vcz1 and write to vcz2_norm"""
     call_or_error(
         normalise_function,
         vcz1,
         vcz2,
         vcz2_norm,
+        variant_chunks_in_batch=variant_chunks_in_batch,
         show_progress=progress,
         zarr_backend_storage=zarr_backend_storage,
     )

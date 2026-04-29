@@ -2,6 +2,7 @@ from collections.abc import Callable
 from typing import Any
 
 import tqdm
+from bio2zarr.vcf_utils import ceildiv
 from vcztools.constants import FLOAT32_MISSING, INT_MISSING, STR_MISSING
 from zarr.core.sync import sync
 from zarr.storage._common import make_store
@@ -20,13 +21,12 @@ def missing_val(arr):
         raise ValueError(f"unrecognised dtype: {arr.dtype}")
 
 
-def variant_chunk_slices(root):
+def variant_chunk_slices(root, variant_chunks_in_batch=1):
     """A generator returning chunk slices along the variants dimension."""
     pos = root["variant_position"]
     size = pos.shape[0]
-    v_chunksize = pos.chunks[0]
-    num_chunks = pos.cdata_shape[0]
-    for v_chunk in range(num_chunks):
+    v_chunksize = pos.chunks[0] * variant_chunks_in_batch
+    for v_chunk in range(ceildiv(size, v_chunksize)):
         start = v_chunksize * v_chunk
         end = min(v_chunksize * (v_chunk + 1), size)
         yield slice(start, end)
