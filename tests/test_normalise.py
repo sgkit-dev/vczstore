@@ -4,6 +4,7 @@ import numpy as np
 import pytest
 import zarr
 from numpy.testing import assert_array_equal
+from vcztools.constants import INT_FILL, INT_MISSING
 
 from vczstore.append import append
 from vczstore.normalise import (
@@ -207,6 +208,60 @@ def test_normalise(variants_chunk_size):
             [[1, 1]],
             [[0, 1]],
             [[0, 1]],  # remapped to vcz1 order
+        ],
+    )
+
+
+@pytest.mark.parametrize("variants_chunk_size", [None, 1, 2, 4])
+def test_normalise_different_ploidy(variants_chunk_size):
+    # contig 0 is ploidy 2 (diploid), contig 1 is ploidy 1 (haploid)
+    vcz1 = make_vcz(
+        variant_contig=[0, 0, 0, 1, 1, 1],
+        variant_position=[1, 2, 3, 1, 2, 3],
+        alleles=[
+            ["A", "T"],
+            ["A", "C"],
+            ["A", "G"],
+            ["T", "A"],
+            ["T", "C"],
+            ["T", "G", "C"],
+        ],
+        variants_chunk_size=variants_chunk_size,
+    )
+
+    vcz2 = make_vcz(
+        variant_contig=[0, 0, 1, 1],
+        variant_position=[1, 3, 1, 2],
+        alleles=[
+            ["A", "T"],
+            ["A", "G"],
+            ["T", "A"],
+            ["T", "C"],
+        ],
+        sample_id=["S1"],
+        call_genotype=[[[0, 0]], [[1, 1]], [[0, INT_FILL]], [[1, INT_FILL]]],
+    )
+
+    vcz2_norm = zarr.storage.MemoryStore()
+
+    normalise(vcz1, vcz2, vcz2_norm, haploid_contigs=["1"])
+
+    root1 = zarr.open(vcz1)
+    root_norm = zarr.open(vcz2_norm)
+
+    assert_array_equal(root_norm["variant_contig"][:], root1["variant_contig"][:])
+    assert_array_equal(root_norm["variant_position"][:], root1["variant_position"][:])
+    assert_array_equal(root_norm["variant_allele"][:], root1["variant_allele"][:])
+    assert_array_equal(root_norm["sample_id"][:], ["S1"])
+    assert_array_equal(
+        root_norm["call_genotype"][:],
+        [
+            [[0, 0]],
+            [[INT_MISSING, INT_MISSING]],
+            [[1, 1]],
+            [[0, INT_FILL]],
+            [[1, INT_FILL]],
+            [[INT_MISSING, INT_FILL]],  # fill is here indicates haploid
         ],
     )
 
