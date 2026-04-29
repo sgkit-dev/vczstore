@@ -6,7 +6,12 @@ from vcztools.constants import INT_FILL, INT_MISSING, STR_FILL, STR_MISSING
 from vcztools.retrieval import VczReader
 from vcztools.utils import array_dims, open_zarr, search
 
-from vczstore.utils import missing_val, variant_chunk_slices, variants_progress
+from vczstore.utils import (
+    copy_store,
+    missing_val,
+    variant_chunk_slices,
+    variants_progress,
+)
 
 
 def normalise(
@@ -97,16 +102,20 @@ def normalise(
                 dimension_names=array_dims(arr),
             )
 
-    # copy static (non-variant-axis) arrays
-    for var, arr in root2.arrays():
-        if array_dims(arr)[0] == "variants":
-            continue
-        # copy samples from vcz2, everything else from vcz1
-        if var == "sample_id":
-            arr = root2[var]
-        else:
-            arr = root1[var]
-        norm_root[var][:] = arr[...]
+    # copy direct from vcz1
+    vcz1_copy_vars = [
+        var
+        for var in root1.keys()
+        if not var.startswith("call_") and var != "sample_id"
+    ]
+    copy_store(vcz1, vcz2_norm, array_keys=vcz1_copy_vars)
+
+    # copy direct from vcz2
+    vcz2_copy_vars = ["sample_id"]
+    copy_store(vcz2, vcz2_norm, array_keys=vcz2_copy_vars)
+
+    # variables to normalise
+    norm_vars = [var for var in root2.keys() if var.startswith("call_")]
 
     # turn bool indexes into int array indexes
     match_idx = np.where(index)[0]
@@ -122,48 +131,39 @@ def normalise(
 
     allele_mappings_list = list(allele_mappings.values())
 
-    # copy variant-chunked arrays
     with variants_progress(n_variants, "Write", show_progress) as pbar:
         for i, v_sel in enumerate(variant_chunk_slices(root1)):
             for var, arr in root2.arrays():
-                if array_dims(arr)[0] != "variants":
+                if var not in norm_vars:
                     continue
-                # copy genotype fields from vcz2, everything else from vcz1
-                if var.startswith("call_"):
-                    arr = root2[var]
-                    chunk_n = v_sel.stop - v_sel.start
-                    shape = (chunk_n,) + arr.shape[1:]
 
-                    if var == "call_genotype":
-                        data = np.full(shape, fill_value=INT_MISSING, dtype=arr.dtype)
-                        if contig_ploidy is not None:
-                            variant_ploidy = contig_ploidy[
-                                root1["variant_contig"][v_sel]
-                            ]
-                            for ploidy in range(1, data.shape[-1]):
-                                ploidy_mask = variant_ploidy == ploidy
-                                data[ploidy_mask, :, ploidy:] = INT_FILL
-                        match_sl = slice(match_starts[i], match_starts[i + 1])
-                        local_idx = match_idx[match_sl] - v_sel.start
-                        data[local_idx, ...] = arr[match_sl, ...]
+                arr = root2[var]
+                chunk_n = v_sel.stop - v_sel.start
+                shape = (chunk_n,) + arr.shape[1:]
 
-                        remap_sl = slice(remap_starts[i], remap_starts[i + 1])
-                        local_remap_idx = remap_idx[remap_sl] - v_sel.start
-                        chunk_maps = allele_mappings_list[remap_sl]
-                        remap_genotypes(data, local_remap_idx, chunk_maps)
+                if var == "call_genotype":
+                    data = np.full(shape, fill_value=INT_MISSING, dtype=arr.dtype)
+                    if contig_ploidy is not None:
+                        variant_ploidy = contig_ploidy[root1["variant_contig"][v_sel]]
+                        for ploidy in range(1, data.shape[-1]):
+                            ploidy_mask = variant_ploidy == ploidy
+                            data[ploidy_mask, :, ploidy:] = INT_FILL
+                    match_sl = slice(match_starts[i], match_starts[i + 1])
+                    local_idx = match_idx[match_sl] - v_sel.start
+                    data[local_idx, ...] = arr[match_sl, ...]
 
-                    else:
-                        data = np.full(
-                            shape, fill_value=missing_val(arr), dtype=arr.dtype
-                        )
-                        match_sl = slice(match_starts[i], match_starts[i + 1])
-                        local_idx = match_idx[match_sl] - v_sel.start
-                        data[local_idx, ...] = arr[match_sl, ...]
+                    remap_sl = slice(remap_starts[i], remap_starts[i + 1])
+                    local_remap_idx = remap_idx[remap_sl] - v_sel.start
+                    chunk_maps = allele_mappings_list[remap_sl]
+                    remap_genotypes(data, local_remap_idx, chunk_maps)
 
-                    norm_root[var][v_sel] = data
                 else:
-                    arr = root1[var]
-                    norm_root[var][v_sel] = arr[v_sel, ...]
+                    data = np.full(shape, fill_value=missing_val(arr), dtype=arr.dtype)
+                    match_sl = slice(match_starts[i], match_starts[i + 1])
+                    local_idx = match_idx[match_sl] - v_sel.start
+                    data[local_idx, ...] = arr[match_sl, ...]
+
+                norm_root[var][v_sel] = data
             pbar.update(v_sel.stop - v_sel.start)
 
 

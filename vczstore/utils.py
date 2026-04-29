@@ -3,6 +3,8 @@ from typing import Any
 
 import tqdm
 from vcztools.constants import FLOAT32_MISSING, INT_MISSING, STR_MISSING
+from zarr.core.sync import sync
+from zarr.storage._common import make_store
 
 
 def missing_val(arr):
@@ -39,6 +41,25 @@ def variants_progress(n_variants, title, show_progress=False):
         smoothing=0.1,
         disable=not show_progress,
     )
+
+
+# inspired by commit f3c123d3a2a94b7f14bc995e3897ee6acc9acbd1 in zarr-python
+def copy_store(source, dest, array_keys=None):
+    from zarr.core.buffer.core import default_buffer_prototype
+    from zarr.testing.stateful import SyncStoreWrapper
+
+    # ensure source and dest are both stores
+    source = sync(make_store(source))
+    dest = sync(make_store(dest))
+
+    s = SyncStoreWrapper(source)
+    d = SyncStoreWrapper(dest)
+    # need reverse=True to create zarr.json before chunks (otherwise icechunk complains)
+    for source_key in sorted(s.list(), reverse=True):
+        if array_keys is not None and source_key.split("/")[0] not in array_keys:
+            continue
+        buffer = s.get(source_key, default_buffer_prototype())
+        d.set(source_key, buffer)
 
 
 def merge_lists(l1: list, l2: list, *, key: Callable[[Any], Any] = lambda x: x) -> list:
