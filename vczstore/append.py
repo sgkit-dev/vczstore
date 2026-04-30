@@ -144,7 +144,7 @@ def append(
         raise ValueError("io_concurrency must be greater than or equal to 1")
 
     if zarr_backend_storage == "icechunk":
-        from vczstore.icechunk_utils import icechunk_transaction
+        from vczstore.utils import icechunk_transaction
 
         cm = icechunk_transaction(vcz1, "main", message="append")
     else:

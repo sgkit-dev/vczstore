@@ -44,7 +44,7 @@ def remove(
         raise ValueError("variant_chunks_in_batch must be greater than or equal to 1")
 
     if zarr_backend_storage == "icechunk":
-        from vczstore.icechunk_utils import icechunk_transaction
+        from vczstore.utils import icechunk_transaction
 
         cm = icechunk_transaction(vcz, "main", message="remove")
     else:

@@ -1,6 +1,9 @@
+from contextlib import contextmanager
+
 import tqdm
 from bio2zarr.vcf_utils import ceildiv
 from vcztools.constants import FLOAT32_MISSING, INT_MISSING, STR_MISSING
+from vcztools.utils import make_icechunk_storage
 from zarr.core.sync import sync
 from zarr.storage._common import make_store
 
@@ -57,3 +60,35 @@ def copy_store(source, dest, array_keys=None):
             continue
         buffer = s.get(source_key, default_buffer_prototype())
         d.set(source_key, buffer)
+
+
+def copy_store_to_icechunk(source, dest):
+    """Copy a Zarr store to a new Icechunk store."""
+    from icechunk import Repository
+
+    icechunk_storage = make_icechunk_storage(dest)
+    repo = Repository.create(icechunk_storage)
+
+    with repo.transaction("main", message="create") as dest:
+        copy_store(source, dest)
+
+
+@contextmanager
+def icechunk_transaction(file_or_url, branch, *, message="update"):
+    """Open an Icechunk store in a transaction, then amend last commit on completion."""
+    from icechunk import Repository
+
+    icechunk_storage = make_icechunk_storage(file_or_url)
+    repo = Repository.open(icechunk_storage)
+
+    with transaction_amend(repo, branch, message=message) as store:
+        yield store
+
+
+@contextmanager
+def transaction_amend(repo, branch, message):
+    """Like Icechunk's `transaction` context manager, but using amend not commit."""
+    session = repo.writable_session(branch)
+    yield session.store
+    # use amend to overwrite previous commit
+    session.amend(message=message)

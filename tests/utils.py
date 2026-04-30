@@ -298,7 +298,7 @@ def compare_vcf_and_vcz(tmp_path, vcf_args, vcf_file, vcz_args, vcz):
 def convert_vcf_to_vcz_icechunk(
     vcf_name, tmp_path, variants_chunk_size=None, samples_chunk_size=None, ploidy=None
 ):
-    from vczstore.icechunk_utils import copy_store_to_icechunk
+    from vczstore.utils import copy_store_to_icechunk
 
     vcz = convert_vcf_to_vcz(
         vcf_name,
