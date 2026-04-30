@@ -53,6 +53,7 @@ icechunk = ["hypothesis", "icechunk"]
 test = [
   "azure-storage-blob",
   "cyvcf2",
+  "fsspec>=2026.4.0",
   "hypothesis>=6.151.12",
   "icechunk>=2",
   "obstore>=0.9.4",

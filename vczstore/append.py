@@ -151,7 +151,7 @@ def append(
         cm = nullcontext(vcz1)
 
     with cm as vcz1:
-        root1 = open_zarr(vcz1, mode="r+", zarr_backend_storage=zarr_backend_storage)
+        root1 = open_zarr(vcz1, mode="r+", backend_storage=zarr_backend_storage)
         root2 = zarr.open(vcz2, mode="r")  # assume local
 
         # check preconditions
