@@ -73,7 +73,7 @@ def test_remove_icechunk(tmp_path):
     pytest.importorskip("icechunk")
     from icechunk import Repository
 
-    from vczstore.icechunk_utils import make_icechunk_storage
+    from vczstore.utils import make_icechunk_storage
 
     vcz = convert_vcf_to_vcz_icechunk("sample.vcf.gz", tmp_path)
 

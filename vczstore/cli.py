@@ -127,7 +127,7 @@ def remove(vcz, sample_id, variant_chunks_in_batch, progress, zarr_backend_stora
 @click.argument("vcz2", type=click.Path())
 def copy_store_to_icechunk(vcz1, vcz2):
     """Copy a Zarr store to a new Icechunk store"""
-    from vczstore.icechunk_utils import (
+    from vczstore.utils import (
         copy_store_to_icechunk as copy_store_to_icechunk_function,
     )
 

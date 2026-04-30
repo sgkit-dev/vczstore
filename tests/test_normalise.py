@@ -307,7 +307,7 @@ def test_normalise_and_append(tmp_path):
 
 def test_normalise_and_append_icechunk(tmp_path):
     pytest.importorskip("icechunk")
-    from vczstore.icechunk_utils import icechunk_transaction
+    from vczstore.utils import icechunk_transaction
 
     # note that vcz0 is in icechunk, but the others needn't be
     vcz0 = convert_vcf_to_vcz_icechunk("sample-variants.vcf.gz", tmp_path, ploidy=2)

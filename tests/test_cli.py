@@ -78,7 +78,7 @@ def test_copy_store_to_icechunk_cli_delegates_to_copy_function(monkeypatch):
         seen["args"] = (source, dest)
 
     monkeypatch.setattr(
-        "vczstore.icechunk_utils.copy_store_to_icechunk", fake_copy_store_to_icechunk
+        "vczstore.utils.copy_store_to_icechunk", fake_copy_store_to_icechunk
     )
 
     runner = ct.CliRunner()
