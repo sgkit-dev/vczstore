@@ -1,6 +1,7 @@
 import numpy as np
 import pytest
 import zarr
+from numpy.testing import assert_array_equal
 
 from vczstore.remove import remove
 
@@ -14,8 +15,54 @@ from .utils import (
 )
 
 
+def test_remove():
+    vcz = make_vcz(
+        variant_contig=[0, 0, 0, 0],
+        variant_position=[1, 2, 3, 4],
+        alleles=[
+            ["A", "T"],
+            ["A", "C"],
+            ["A", "C"],
+            ["A", "T", "C"],
+        ],
+        sample_id=["S1", "S2", "S3"],
+        call_genotype=[
+            [[0, 0], [1, 0], [1, 1]],
+            [[0, 1], [0, 0], [0, 1]],
+            [[0, 0], [1, 1], [0, 1]],
+            [[1, 1], [0, 1], [0, 2]],
+        ],
+    )
+
+    remove(vcz, "S2")
+
+    root = zarr.open(vcz)
+
+    assert_array_equal(root["variant_contig"][:], [0, 0, 0, 0])
+    assert_array_equal(root["variant_position"][:], [1, 2, 3, 4])
+    assert_array_equal(
+        root["variant_allele"][:],
+        [
+            ["A", "T", ""],
+            ["A", "C", ""],
+            ["A", "C", ""],
+            ["A", "T", "C"],
+        ],
+    )
+    assert_array_equal(root["sample_id"][:], ["S1", "", "S3"])
+    assert_array_equal(
+        root["call_genotype"][:],
+        [
+            [[0, 0], [-1, -1], [1, 1]],
+            [[0, 1], [-1, -1], [0, 1]],
+            [[0, 0], [-1, -1], [0, 1]],
+            [[1, 1], [-1, -1], [0, 2]],
+        ],
+    )
+
+
 @pytest.mark.parametrize("zarr_backend_storage", [None, "obstore"])
-def test_remove(tmp_path, zarr_backend_storage):
+def test_remove_compare_vcf(tmp_path, zarr_backend_storage):
     vcz = convert_vcf_to_vcz("sample.vcf.gz", tmp_path)
 
     # check samples query
