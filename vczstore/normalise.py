@@ -22,6 +22,7 @@ def normalise(
     vcz2_norm,
     *,
     haploid_contigs=None,
+    allow_new_alleles=False,
     variant_chunks_in_batch=None,
     show_progress=False,
     backend_storage=None,
@@ -40,12 +41,15 @@ def normalise(
     if variant_chunks_in_batch < 1:
         raise ValueError("variant_chunks_in_batch must be greater than or equal to 1")
 
-    index, remap_alleles, allele_mappings, updated_allele_mappings = index_variants(
-        vcz1, vcz2, show_progress=show_progress
+    index, remap_alleles, update_alleles, allele_mappings, updated_allele_mappings = (
+        index_variants(vcz1, vcz2, show_progress=show_progress)
     )
 
-    if len(updated_allele_mappings) > 0:
-        raise NotImplementedError(f"New alleles found: {updated_allele_mappings}")
+    if not allow_new_alleles and len(updated_allele_mappings) > 0:
+        raise NotImplementedError(
+            "New alleles found and `--allow-new-alleles` not specified: "
+            f"{updated_allele_mappings}"
+        )
 
     root1 = open_zarr(vcz1, mode="r", backend_storage=backend_storage)
     # assume vcz2, vcz2_norm are local
@@ -129,6 +133,7 @@ def normalise(
     # turn bool indexes into int array indexes
     match_idx = np.where(index)[0]
     remap_idx = np.where(remap_alleles)[0]
+    update_idx = np.where(update_alleles)[0]
 
     # find chunk boundaries
     chunk_bounds = np.arange(
@@ -139,8 +144,10 @@ def normalise(
     # find chunk offsets for indexes
     match_starts = np.searchsorted(match_idx, chunk_bounds)
     remap_starts = np.searchsorted(remap_idx, chunk_bounds)
+    update_starts = np.searchsorted(update_idx, chunk_bounds)
 
     allele_mappings_list = list(allele_mappings.values())
+    updated_allele_mappings_list = list(updated_allele_mappings.values())
 
     with progress_bar(n_variants, "Write", show_progress) as pbar:
         for i, v_sel in enumerate(variant_chunk_slices(root1, variant_chunks_in_batch)):
@@ -175,7 +182,21 @@ def normalise(
                     data[local_idx, ...] = arr[match_sl, ...]
 
                 norm_root[var][v_sel] = data
+
+            # update variant_allele if needed
+            if len(update_idx) > 0:
+                var = "variant_allele"
+                data = root1[var][v_sel, :]
+                update_sl = slice(update_starts[i], update_starts[i + 1])
+                local_update_idx = update_idx[update_sl] - v_sel.start
+                chunk_maps = updated_allele_mappings_list[update_sl]
+                update_variant_alleles(data, local_update_idx, chunk_maps)
+                norm_root[var][v_sel] = data
+
             pbar.update(v_sel.stop - v_sel.start)
+
+    if len(update_idx) > 0:
+        norm_root["variant_allele"].attrs["normalise_new_alleles"] = True
 
 
 def remap_genotypes(gt, indices, mappings):
@@ -194,6 +215,16 @@ def remap_genotypes(gt, indices, mappings):
                     gt[i, j, k] = mapping[val]
 
 
+def update_variant_alleles(variant_allele, indices, mappings):
+    """Update a variant allele array in-place with new alleles.
+
+    indices and mappings are parallel arrays of variant positions and their
+    updated alleles.
+    """
+    for i, updated_alleles in zip(indices, mappings):
+        variant_allele[i, : updated_alleles.shape[0]] = updated_alleles
+
+
 def index_variants(vcz1, vcz2, *, show_progress=False, backend_storage=None):
     """Construct an index for variants of vcz2 that are in vcz1.
 
@@ -201,6 +232,8 @@ def index_variants(vcz1, vcz2, *, show_progress=False, backend_storage=None):
         index: bool array of length n_variants (vcz1), True where variant is in vcz2.
         remap_alleles: bool array of length n_variants (vcz1), True where alleles
             need remapping.
+        update_alleles: bool array of length n_variants (vcz1), True where alleles
+            need updating.
         allele_mappings: dict {variant_index: int_array} giving the allele index
             remapping.
         updated_allele_mappings: dict {variant_index: str_array} of the updated
@@ -241,6 +274,7 @@ def index_variants(vcz1, vcz2, *, show_progress=False, backend_storage=None):
 
     index = np.zeros(n_variants1, dtype=bool)
     remap_alleles = np.zeros(n_variants1, dtype=bool)
+    update_alleles = np.zeros(n_variants1, dtype=bool)
     allele_mappings = {}
     updated_allele_mappings = {}
 
@@ -302,6 +336,7 @@ def index_variants(vcz1, vcz2, *, show_progress=False, backend_storage=None):
             remap_alleles[i1] = True
             allele_mappings[i1] = mapping
         if updated is not None:
+            update_alleles[i1] = True
             updated_allele_mappings[i1] = updated
 
     # Multi-allelic sites: two-pointer allele matching within each site group.
@@ -330,6 +365,7 @@ def index_variants(vcz1, vcz2, *, show_progress=False, backend_storage=None):
                         remap_alleles[i1_ptr] = True
                         allele_mappings[i1_ptr] = mapping
                     if updated is not None:
+                        update_alleles[i1_ptr] = True
                         updated_allele_mappings[i1_ptr] = updated
                     i1_ptr += 1
                     matched_this = True
@@ -341,7 +377,13 @@ def index_variants(vcz1, vcz2, *, show_progress=False, backend_storage=None):
                     f"{variant_repr(contig_id2, variant_contig2, variant_position2, variant_allele2, i2)}"  # noqa E501
                 )
 
-    return index, remap_alleles, allele_mappings, updated_allele_mappings
+    return (
+        index,
+        remap_alleles,
+        update_alleles,
+        allele_mappings,
+        updated_allele_mappings,
+    )
 
 
 def variant_alleles_are_equivalent(

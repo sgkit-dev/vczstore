@@ -117,6 +117,14 @@ def create(vcz1, vcz2, vcz_out, verbose, progress, backend_storage):
 @click.argument("vcz1", type=click.Path())
 @click.argument("vcz2", type=click.Path())
 @click.argument("vcz2_norm", type=click.Path())
+@click.option(
+    "--allow-new-alleles",
+    is_flag=True,
+    help=(
+        "If new alleles are found at a variant site in vcz2 the variant_allele array "
+        "is updated, otherwise the operation fails if not specified."
+    ),
+)
 @variant_chunks_in_batch
 @verbose
 @progress
@@ -125,6 +133,7 @@ def normalise(
     vcz1,
     vcz2,
     vcz2_norm,
+    allow_new_alleles,
     variant_chunks_in_batch,
     verbose,
     progress,
@@ -137,6 +146,7 @@ def normalise(
         vcz1,
         vcz2,
         vcz2_norm,
+        allow_new_alleles=allow_new_alleles,
         variant_chunks_in_batch=variant_chunks_in_batch,
         show_progress=progress,
         backend_storage=backend_storage,

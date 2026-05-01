@@ -88,12 +88,13 @@ def test_remap_genotypes__multiple_variants():
 def test_index_variants__success_subset():
     vcz1 = make_vcz([0, 0, 0], [1, 2, 3], [["A", "T"], ["C", "G"], ["T", "A"]])
     vcz2 = make_vcz([0, 0], [1, 3], [["A", "T"], ["T", "A"]])
-    index, remap_alleles, allele_mappings, updated_allele_mappings = index_variants(
-        vcz1, vcz2
+    index, remap_alleles, update_alleles, allele_mappings, updated_allele_mappings = (
+        index_variants(vcz1, vcz2)
     )
 
     assert_array_equal(index, [True, False, True])
     assert_array_equal(remap_alleles, [False, False, False])
+    assert_array_equal(update_alleles, [False, False, False])
     assert len(allele_mappings) == 0
     assert len(updated_allele_mappings) == 0
 
@@ -102,11 +103,12 @@ def test_index_variants__success_repeated_site():
     # example where multi-allelic sites are split to biallelic
     vcz1 = make_vcz([0, 0, 0], [1, 1, 3], [["A", "T"], ["A", "C"], ["T", "A"]])
     vcz2 = make_vcz([0, 0], [1, 1], [["A", "T"], ["A", "C"]])
-    index, remap_alleles, allele_mappings, updated_allele_mappings = index_variants(
-        vcz1, vcz2
+    index, remap_alleles, update_alleles, allele_mappings, updated_allele_mappings = (
+        index_variants(vcz1, vcz2)
     )
     assert_array_equal(index, [True, True, False])
     assert_array_equal(remap_alleles, [False, False, False])
+    assert_array_equal(update_alleles, [False, False, False])
     assert len(allele_mappings) == 0
     assert len(updated_allele_mappings) == 0
 
@@ -114,11 +116,12 @@ def test_index_variants__success_repeated_site():
 def test_index_variants__success_overlapping_alt_alleles():
     vcz1 = make_vcz([0, 0, 0], [1, 2, 3], [["A", "C", "T"], ["C", "G"], ["T", "A"]])
     vcz2 = make_vcz([0, 0], [1, 3], [["A", "T"], ["T", "A"]])
-    index, remap_alleles, allele_mappings, updated_allele_mappings = index_variants(
-        vcz1, vcz2
+    index, remap_alleles, update_alleles, allele_mappings, updated_allele_mappings = (
+        index_variants(vcz1, vcz2)
     )
     assert_array_equal(index, [True, False, True])
     assert_array_equal(remap_alleles, [True, False, False])
+    assert_array_equal(update_alleles, [False, False, False])
     assert_array_equal(allele_mappings[0], [0, 2])
     assert len(updated_allele_mappings) == 0
 
@@ -126,11 +129,12 @@ def test_index_variants__success_overlapping_alt_alleles():
 def test_index_variants__success_new_alt_allele():
     vcz1 = make_vcz([0, 0, 0], [1, 2, 3], [["A", "T"], ["C", "G"], ["T", "A"]])
     vcz2 = make_vcz([0, 0], [1, 3], [["A", "C", "T"], ["T", "A"]])
-    index, remap_alleles, allele_mappings, updated_allele_mappings = index_variants(
-        vcz1, vcz2
+    index, remap_alleles, update_alleles, allele_mappings, updated_allele_mappings = (
+        index_variants(vcz1, vcz2)
     )
     assert_array_equal(index, [True, False, True])
     assert_array_equal(remap_alleles, [True, False, False])
+    assert_array_equal(update_alleles, [True, False, False])
     assert_array_equal(allele_mappings[0], [0, 2, 1])
     assert_array_equal(updated_allele_mappings[0], ["A", "T", "C"])
 
@@ -138,11 +142,12 @@ def test_index_variants__success_new_alt_allele():
 def test_index_variants__success_new_alt_allele_repeated_site():
     vcz1 = make_vcz([0, 0, 0], [1, 1, 3], [["A", "T"], ["C", "G"], ["T", "A"]])
     vcz2 = make_vcz([0, 0], [1, 3], [["A", "C", "T"], ["T", "A"]])
-    index, remap_alleles, allele_mappings, updated_allele_mappings = index_variants(
-        vcz1, vcz2
+    index, remap_alleles, update_alleles, allele_mappings, updated_allele_mappings = (
+        index_variants(vcz1, vcz2)
     )
     assert_array_equal(index, [True, False, True])
     assert_array_equal(remap_alleles, [True, False, False])
+    assert_array_equal(update_alleles, [True, False, False])
     assert_array_equal(allele_mappings[0], [0, 2, 1])
     assert_array_equal(updated_allele_mappings[0], ["A", "T", "C"])
 
@@ -218,8 +223,8 @@ def test_index_variants__int64_position_overflow():
 @pytest.mark.parametrize("variant_chunks_in_batch", [None, 1, 2])
 def test_normalise(variants_chunk_size, variant_chunks_in_batch):
     vcz1 = make_vcz(
-        variant_contig=[0, 0, 0, 0, 0, 0, 0, 0, 0],
-        variant_position=[1, 2, 3, 4, 4, 5, 5, 6, 7],
+        variant_contig=[0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+        variant_position=[1, 2, 3, 4, 4, 5, 5, 6, 7, 8],
         alleles=[
             ["A", "T"],
             ["A", "C"],
@@ -230,13 +235,14 @@ def test_normalise(variants_chunk_size, variant_chunks_in_batch):
             ["A", "T", "C"],
             ["A", "G", "T"],
             ["A", "T", "G"],
+            ["A", "T"],
         ],
         variants_chunk_size=variants_chunk_size,
     )
 
     vcz2 = make_vcz(
-        variant_contig=[0, 0, 0, 0, 0, 0],
-        variant_position=[1, 2, 4, 5, 6, 7],
+        variant_contig=[0, 0, 0, 0, 0, 0, 0],
+        variant_position=[1, 2, 4, 5, 6, 7, 8],
         alleles=[
             ["A", "T"],
             ["A", "C"],
@@ -244,21 +250,51 @@ def test_normalise(variants_chunk_size, variant_chunks_in_batch):
             ["A", "T", "C"],
             ["A", "G"],
             ["A", "G", "T"],  # order different to vcz1
+            ["A", "T", "C"],  # new allele (C)
         ],
         sample_id=["S1"],
-        call_genotype=[[[0, 0]], [[0, 1]], [[0, 0]], [[1, 1]], [[0, 1]], [[0, 2]]],
+        call_genotype=[
+            [[0, 0]],
+            [[0, 1]],
+            [[0, 0]],
+            [[1, 1]],
+            [[0, 1]],
+            [[0, 2]],
+            [[0, 2]],
+        ],
     )
 
     vcz2_norm = zarr.storage.MemoryStore()
 
-    normalise(vcz1, vcz2, vcz2_norm, variant_chunks_in_batch=variant_chunks_in_batch)
+    normalise(
+        vcz1,
+        vcz2,
+        vcz2_norm,
+        variant_chunks_in_batch=variant_chunks_in_batch,
+        allow_new_alleles=True,
+    )
 
     root1 = zarr.open(vcz1)
     root_norm = zarr.open(vcz2_norm)
 
     assert_array_equal(root_norm["variant_contig"][:], root1["variant_contig"][:])
     assert_array_equal(root_norm["variant_position"][:], root1["variant_position"][:])
-    assert_array_equal(root_norm["variant_allele"][:], root1["variant_allele"][:])
+    assert_array_equal(
+        root_norm["variant_allele"][:],
+        [
+            ["A", "T", ""],
+            ["A", "C", ""],
+            ["A", "G", ""],
+            ["A", "C", ""],
+            ["A", "G", "T"],
+            ["A", "G", ""],
+            ["A", "T", "C"],
+            ["A", "G", "T"],
+            ["A", "T", "G"],
+            ["A", "T", "C"],  # new allele (C)
+        ],
+    )
+    assert root_norm["variant_allele"].attrs["normalise_new_alleles"] is True
     assert_array_equal(root_norm["sample_id"][:], ["S1"])
     assert_array_equal(
         root_norm["call_genotype"][:],
@@ -272,6 +308,7 @@ def test_normalise(variants_chunk_size, variant_chunks_in_batch):
             [[1, 1]],
             [[0, 1]],
             [[0, 1]],  # remapped to vcz1 order
+            [[0, 2]],
         ],
     )
 
