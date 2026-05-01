@@ -4,7 +4,7 @@ from contextlib import nullcontext
 import numpy as np
 from vcztools.utils import array_dims, open_zarr, search
 
-from vczstore.utils import missing_val, variant_chunk_slices, variants_progress
+from vczstore.utils import missing_val, progress_bar, variant_chunk_slices
 
 logger = logging.getLogger(__name__)
 
@@ -72,7 +72,7 @@ def remove(
 
         # overwrite sample data
         root["sample_id"][sample_selection] = ""
-        with variants_progress(n_variants, "Remove", show_progress) as pbar:
+        with progress_bar(n_variants, "Remove", show_progress) as pbar:
             for v_sel in variant_chunk_slices(root, variant_chunks_in_batch):
                 for var in root.keys():
                     arr = root[var]
