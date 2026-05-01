@@ -38,7 +38,7 @@ After creation the store contains no samples.
 
 ### Appending new samples to a store
 
-New samples often arrive as single-sample VCFs. For efficiency, it is best to append in batches that correspond to the sample chunk size (default 10,000), but it is possible to append a smaller number of samples.
+New samples often arrive as single-sample VCFs. For efficiency, it is best to append in batches that correspond to the sample chunk size (default 10,000), but it is possible to append a smaller number of samples at a significant performance cost (typically an order of magnitude slower). There is a CLI option, `--require-direct-copy`, that will cause the append to fail before performing the update unless the chunks align to allow a direct copy.
 
 The single-sample VCFs are turned into a single VCF using `bcftools merge`. However, note that in this case the samples must all have the same set of variants. If there are VCFs with different variants (e.g. from different genotype arrays) then they must be appended in separate operations.
 
@@ -48,7 +48,9 @@ The `vczstore normalise` step ensures that the VCZ contains the same number of v
 
 ### Removing a sample from a store
 
-When a sample is removed, all data for that sample is overwritten with missing values. This is performed directly on the store.
+When a sample is removed, all data for that sample is overwritten with missing values. (Note that this means that storage space is not reclaimed.) This is performed directly on the store.
+
+When using Icechunk storage, the previous commit is [amended](https://icechunk.io/en/stable/understanding/version-control/#amending-a-snapshot), which ensures that no history for removed samples is retained in the store.
 
 ![Removing a sample from a store](docs/images/vczstore-remove.drawio.svg)
 
