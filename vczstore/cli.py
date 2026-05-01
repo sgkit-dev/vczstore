@@ -36,10 +36,10 @@ progress = click.option(
 
 zarr_backend_storage = click.option(
     "--zarr-backend-storage",
-    type=click.Choice(["fsspec", "obstore", "icechunk"]),
+    type=click.Choice(["obstore", "icechunk"]),
     default=None,
-    help="Zarr backend storage to use; one of 'fsspec' (default), 'obstore', "
-    "or 'icechunk'.",
+    show_default="local if not specified",
+    help="Zarr backend storage to use; one of 'obstore' or 'icechunk'.",
 )
 
 variant_chunks_in_batch = click.option(

@@ -40,7 +40,7 @@ from .utils import (
 
 
 @pytest.mark.parametrize("samples_chunk_size", [1, 2, 4])
-@pytest.mark.parametrize("zarr_backend_storage", [None, "obstore", "fsspec"])
+@pytest.mark.parametrize("zarr_backend_storage", [None, "obstore"])
 def test_append(tmp_path, samples_chunk_size, zarr_backend_storage):
     vcz1 = convert_vcf_to_vcz(
         "sample-part1.vcf.gz", tmp_path, samples_chunk_size=samples_chunk_size

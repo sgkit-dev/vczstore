@@ -50,7 +50,7 @@ def remove(
     else:
         cm = nullcontext(vcz)
     with cm as vcz:
-        root = open_zarr(vcz, mode="r+", zarr_backend_storage=zarr_backend_storage)
+        root = open_zarr(vcz, mode="r+", backend_storage=zarr_backend_storage)
         n_variants = root["variant_contig"].shape[0]
         all_samples = root["sample_id"][:]
 

@@ -33,7 +33,6 @@ from .utils import (
     ("zarr_backend_storage_args", "expected_zarr_backend_storage"),
     [
         ([], None),
-        (["--zarr-backend-storage", "fsspec"], "fsspec"),
         (["--zarr-backend-storage", "icechunk"], "icechunk"),
         (["--zarr-backend-storage", "obstore"], "obstore"),
     ],
