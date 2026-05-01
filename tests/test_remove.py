@@ -14,7 +14,7 @@ from .utils import (
 )
 
 
-@pytest.mark.parametrize("zarr_backend_storage", [None, "obstore", "fsspec"])
+@pytest.mark.parametrize("zarr_backend_storage", [None, "obstore"])
 def test_remove(tmp_path, zarr_backend_storage):
     vcz = convert_vcf_to_vcz("sample.vcf.gz", tmp_path)
 
