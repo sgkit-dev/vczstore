@@ -132,6 +132,7 @@ def test_help_lists_commands_in_natural_order():
     assert result.exit_code == 0
     assert list(cli.vczstore_main.commands) == [
         "append",
+        "create",
         "normalise",
         "remove",
         "copy-store-to-icechunk",

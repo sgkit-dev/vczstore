@@ -348,6 +348,11 @@ def make_vcz(
     variant_position,
     alleles,
     *,
+    variant_length=None,
+    variant_id=None,
+    variant_quality=None,
+    variant_filter=None,
+    filter_id=None,
     sample_id=None,
     variants_chunk_size=None,
     samples_chunk_size=None,
@@ -399,6 +404,63 @@ def make_vcz(
         compressors=None,
         filters=None,
     )
+    if variant_length is not None:
+        root.create_array(
+            name="variant_length",
+            data=np.asarray(variant_length, dtype=np.int32),
+            chunks=(v_chunk,),
+            dimension_names=["variants"],
+            compressors=None,
+            filters=None,
+        )
+    if variant_id is not None:
+        id_arr = np.asarray(variant_id, dtype=str)
+        root.create_array(
+            name="variant_id",
+            data=id_arr,
+            chunks=(v_chunk,),
+            dimension_names=["variants"],
+            compressors=None,
+            filters=None,
+        )
+        root.create_array(
+            name="variant_id_mask",
+            data=id_arr == ".",
+            chunks=(v_chunk,),
+            dimension_names=["variants"],
+            compressors=None,
+            filters=None,
+        )
+    if variant_quality is not None:
+        root.create_array(
+            name="variant_quality",
+            data=np.asarray(variant_quality, dtype=np.float32),
+            chunks=(v_chunk,),
+            dimension_names=["variants"],
+            compressors=None,
+            filters=None,
+        )
+    if variant_filter is not None:
+        vf_arr = np.asarray(variant_filter, dtype=bool)
+        n_filters = vf_arr.shape[1] if vf_arr.ndim == 2 else 1
+        fi_arr = np.asarray(
+            filter_id if filter_id is not None else list(range(n_filters)), dtype=str
+        )
+        root.create_array(
+            name="filter_id",
+            data=fi_arr,
+            dimension_names=["filters"],
+            compressors=None,
+            filters=None,
+        )
+        root.create_array(
+            name="variant_filter",
+            data=vf_arr,
+            chunks=(v_chunk, n_filters),
+            dimension_names=["variants", "filters"],
+            compressors=None,
+            filters=None,
+        )
     root.create_array(
         name="variant_allele",
         data=allele_array,
