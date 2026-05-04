@@ -1,4 +1,5 @@
 import click
+import coloredlogs
 
 from vczstore.append import append as append_function
 from vczstore.normalise import normalise as normalise_function
@@ -14,6 +15,15 @@ class NaturalOrderGroup(click.Group):
         return self.commands.keys()
 
 
+def setup_logging(verbosity):
+    level = "WARNING"
+    if verbosity == 1:
+        level = "INFO"
+    elif verbosity >= 2:
+        level = "DEBUG"
+    coloredlogs.install(level=level)
+
+
 def show_work_summary(work_summary):
     output = work_summary.asjson()
     click.echo(output)
@@ -26,13 +36,14 @@ def call_or_error(function, *args, **kwargs):
         raise click.ClickException(str(e)) from e
 
 
+verbose = click.option("-v", "--verbose", count=True, help="Increase verbosity")
+
 progress = click.option(
     "-P /-Q",
     "--progress/--no-progress",
     default=True,
     help="Show progress bars (default: show)",
 )
-
 
 zarr_backend_storage = click.option(
     "--zarr-backend-storage",
@@ -54,6 +65,7 @@ variant_chunks_in_batch = click.option(
 @click.command()
 @click.argument("vcz1", type=click.Path())
 @click.argument("vcz2", type=click.Path())
+@verbose
 @zarr_backend_storage
 @click.option(
     "--io-concurrency",
@@ -70,8 +82,11 @@ variant_chunks_in_batch = click.option(
         "This requires a sample chunk-aligned destination and incoming sample count."
     ),
 )
-def append(vcz1, vcz2, zarr_backend_storage, io_concurrency, require_direct_copy):
+def append(
+    vcz1, vcz2, verbose, zarr_backend_storage, io_concurrency, require_direct_copy
+):
     """Append vcz2 to vcz1 in place"""
+    setup_logging(verbose)
     call_or_error(
         append_function,
         vcz1,
@@ -87,12 +102,20 @@ def append(vcz1, vcz2, zarr_backend_storage, io_concurrency, require_direct_copy
 @click.argument("vcz2", type=click.Path())
 @click.argument("vcz2_norm", type=click.Path())
 @variant_chunks_in_batch
+@verbose
 @progress
 @zarr_backend_storage
 def normalise(
-    vcz1, vcz2, vcz2_norm, variant_chunks_in_batch, progress, zarr_backend_storage
+    vcz1,
+    vcz2,
+    vcz2_norm,
+    variant_chunks_in_batch,
+    verbose,
+    progress,
+    zarr_backend_storage,
 ):
     """Normalise variants in vcz2 with respect to vcz1 and write to vcz2_norm"""
+    setup_logging(verbose)
     call_or_error(
         normalise_function,
         vcz1,
@@ -108,10 +131,14 @@ def normalise(
 @click.argument("vcz", type=click.Path())
 @click.argument("sample_id", type=str)
 @variant_chunks_in_batch
+@verbose
 @progress
 @zarr_backend_storage
-def remove(vcz, sample_id, variant_chunks_in_batch, progress, zarr_backend_storage):
+def remove(
+    vcz, sample_id, variant_chunks_in_batch, verbose, progress, zarr_backend_storage
+):
     """Remove a sample from vcz and overwrite with missing data"""
+    setup_logging(verbose)
     call_or_error(
         remove_function,
         vcz,
@@ -125,12 +152,14 @@ def remove(vcz, sample_id, variant_chunks_in_batch, progress, zarr_backend_stora
 @click.command()
 @click.argument("vcz1", type=click.Path())
 @click.argument("vcz2", type=click.Path())
-def copy_store_to_icechunk(vcz1, vcz2):
+@verbose
+def copy_store_to_icechunk(vcz1, vcz2, verbose):
     """Copy a Zarr store to a new Icechunk store"""
     from vczstore.utils import (
         copy_store_to_icechunk as copy_store_to_icechunk_function,
     )
 
+    setup_logging(verbose)
     call_or_error(copy_store_to_icechunk_function, vcz1, vcz2)
 
 
