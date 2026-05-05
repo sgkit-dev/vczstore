@@ -25,11 +25,6 @@ def setup_logging(verbosity):
     coloredlogs.install(level=level)
 
 
-def show_work_summary(work_summary):
-    output = work_summary.asjson()
-    click.echo(output)
-
-
 def call_or_error(function, *args, **kwargs):
     try:
         return function(*args, **kwargs)
