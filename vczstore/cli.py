@@ -2,6 +2,7 @@ import click
 import coloredlogs
 
 from vczstore.append import append as append_function
+from vczstore.create import create as create_function
 from vczstore.normalise import normalise as normalise_function
 from vczstore.remove import remove as remove_function
 
@@ -98,6 +99,26 @@ def append(vcz1, vcz2, verbose, backend_storage, io_concurrency, require_direct_
 @click.command()
 @click.argument("vcz1", type=click.Path())
 @click.argument("vcz2", type=click.Path())
+@click.argument("vcz_out", type=click.Path())
+@verbose
+@progress
+@backend_storage
+def create(vcz1, vcz2, vcz_out, verbose, progress, backend_storage):
+    """Create a new, empty store vcz_out using merged variants from vcz1 and vcz2"""
+    setup_logging(verbose)
+    call_or_error(
+        create_function,
+        vcz1,
+        vcz2,
+        vcz_out,
+        show_progress=progress,
+        backend_storage=backend_storage,
+    )
+
+
+@click.command()
+@click.argument("vcz1", type=click.Path())
+@click.argument("vcz2", type=click.Path())
 @click.argument("vcz2_norm", type=click.Path())
 @variant_chunks_in_batch
 @verbose
@@ -165,6 +186,7 @@ def vczstore_main():
 
 
 vczstore_main.add_command(append)
+vczstore_main.add_command(create)
 vczstore_main.add_command(normalise)
 vczstore_main.add_command(remove)
 vczstore_main.add_command(copy_store_to_icechunk)

@@ -155,7 +155,7 @@ def test_index_variants__order_mismatch():
     with pytest.raises(
         match=re.escape(
             "Variant in vcz2 not found in vcz1 (or vcz2 is out of order): "
-            "variant_contig=0, variant_position=1, variant_allele=['A', 'T']"
+            "contig=0, variant_position=1, variant_allele=['A', 'T']"
         )
     ):
         index_variants(vcz1, vcz2)
@@ -167,7 +167,7 @@ def test_index_variants__new_variant():
     with pytest.raises(
         match=re.escape(
             "Variant in vcz2 not found in vcz1 (or vcz2 is out of order): "
-            "variant_contig=0, variant_position=1, variant_allele=['A', '.']"
+            "contig=0, variant_position=1, variant_allele=['A', '.']"
         )
     ):
         index_variants(vcz1, vcz2)
@@ -179,7 +179,7 @@ def test_index_variants__new_variant_at_end():
     with pytest.raises(
         match=re.escape(
             "Variant in vcz2 not found in vcz1 (or vcz2 is out of order): "
-            "variant_contig=0, variant_position=4, variant_allele=['G', 'A']"
+            "contig=0, variant_position=4, variant_allele=['G', 'A']"
         )
     ):
         index_variants(vcz1, vcz2)
@@ -191,8 +191,9 @@ def test_index_variants__new_allele():
     vcz2 = make_vcz([0, 0], [1, 3], [["A", "T"], ["T", "G"]])
     with pytest.raises(
         match=re.escape(
-            "Variant alleles in vcz2 are not equivalent to vcz1: "
-            "variant_contig=0, variant_position=3, variant_allele=['T', 'G']"
+            "Variant alleles in vcz2 are not equivalent to vcz1. "
+            "vcz1: contig=0, variant_position=3, variant_allele=['T', 'A'] "
+            "vcz2: contig=0, variant_position=3, variant_allele=['T', 'G']"
         )
     ):
         index_variants(vcz1, vcz2)

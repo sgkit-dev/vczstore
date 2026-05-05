@@ -213,7 +213,10 @@ def index_variants(vcz1, vcz2, *, show_progress=False, backend_storage=None):
     root1 = open_zarr(vcz1, mode="r", backend_storage=backend_storage)
     root2 = zarr.open(vcz2, mode="r")  # assume local
 
-    if not np.all(root1["contig_id"][:] == root2["contig_id"][:]):
+    contig_id1 = root1["contig_id"][:]
+    contig_id2 = root2["contig_id"][:]
+
+    if not np.all(contig_id1 == contig_id2):
         raise ValueError("contig_id fields must be identical")
 
     with progress_bar(6, "Index", show_progress, unit="array") as pbar:
@@ -283,15 +286,16 @@ def index_variants(vcz1, vcz2, *, show_progress=False, backend_storage=None):
 
     # Python fallback for simple sites whose alleles aren't byte-identical.
     for j in np.where(~exact_simple)[0]:
-        i2 = int(simple_i2[j])
         i1 = int(simple_i1[j])
+        i2 = int(simple_i2[j])
         matched, mapping, updated = variant_alleles_are_equivalent(
             variant_allele1[i1], variant_allele2[i2]
         )
         if not matched:
             raise ValueError(
-                "Variant alleles in vcz2 are not equivalent to vcz1: "
-                f"{variant_repr(variant_contig2, variant_position2, variant_allele2, i2)}"  # noqa E501
+                "Variant alleles in vcz2 are not equivalent to vcz1. "
+                f"vcz1: {variant_repr(contig_id1, variant_contig1, variant_position1, variant_allele1, i1)} "  # noqa E501
+                f"vcz2: {variant_repr(contig_id2, variant_contig2, variant_position2, variant_allele2, i2)}"  # noqa E501
             )
         index[i1] = True
         if mapping is not None:
@@ -310,7 +314,7 @@ def index_variants(vcz1, vcz2, *, show_progress=False, backend_storage=None):
         if i1_start == i1_end:
             raise ValueError(
                 "Variant in vcz2 not found in vcz1 (or vcz2 is out of order): "
-                f"{variant_repr(variant_contig2, variant_position2, variant_allele2, i2_start)}"  # noqa E501
+                f"{variant_repr(contig_id2, variant_contig2, variant_position2, variant_allele2, i2_start)}"  # noqa E501
             )
 
         i1_ptr = i1_start
@@ -334,7 +338,7 @@ def index_variants(vcz1, vcz2, *, show_progress=False, backend_storage=None):
             if not matched_this:
                 raise ValueError(
                     "Variant in vcz2 not found in vcz1 (or vcz2 is out of order): "
-                    f"{variant_repr(variant_contig2, variant_position2, variant_allele2, i2)}"  # noqa E501
+                    f"{variant_repr(contig_id2, variant_contig2, variant_position2, variant_allele2, i2)}"  # noqa E501
                 )
 
     return index, remap_alleles, allele_mappings, updated_allele_mappings
@@ -377,10 +381,10 @@ def variant_alleles_are_equivalent(
     return False, None, None
 
 
-def variant_repr(variant_contig, variant_position, variant_allele, i) -> str:
+def variant_repr(contig_id, variant_contig, variant_position, variant_allele, i) -> str:
     """Simple repr for a variant"""
     return (
-        f"variant_contig={variant_contig[i]}, "
+        f"contig={contig_id[variant_contig[i]]}, "
         f"variant_position={variant_position[i]}, "
         f"variant_allele={variant_allele[i].tolist()}"
     )
