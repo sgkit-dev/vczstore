@@ -1,4 +1,3 @@
-import asyncio
 import logging
 import os
 from contextlib import nullcontext, suppress
@@ -6,6 +5,7 @@ from itertools import product
 
 import numpy as np
 import zarr
+from aiostream import stream
 from vcztools.utils import array_dims, open_zarr
 from zarr.core.sync import sync
 
@@ -81,7 +81,10 @@ def _copy_encoded_chunks_error(name, arr1, arr2):
 async def _copy_encoded_chunks(
     dst_arr, src_arr, *, dst_num_sample_chunks, io_concurrency
 ):
-    async def copy_chunk(src_coords, dst_coords):
+    async def copy_chunk(src_coords):
+        dst_coords = (
+            src_coords[:1] + (dst_num_sample_chunks + src_coords[1],) + src_coords[2:]
+        )
         src_key = src_arr.store_path / src_arr.metadata.encode_chunk_key(src_coords)
         dst_key = dst_arr.store_path / dst_arr.metadata.encode_chunk_key(dst_coords)
         buf = await src_key.get()
@@ -92,32 +95,11 @@ async def _copy_encoded_chunks(
         else:
             await dst_key.set(buf)
 
-    async def wait_for_one(tasks):
-        done, tasks = await asyncio.wait(tasks, return_when=asyncio.FIRST_COMPLETED)
-        for task in done:
-            task.result()
-        return tasks
-
-    tasks = set()
-    try:
-        for src_coords in product(*[range(n) for n in src_arr.cdata_shape]):
-            dst_coords = (
-                src_coords[:1]
-                + (dst_num_sample_chunks + src_coords[1],)
-                + src_coords[2:]
-            )
-            if len(tasks) >= io_concurrency:
-                tasks = await wait_for_one(tasks)
-            tasks.add(asyncio.create_task(copy_chunk(src_coords, dst_coords)))
-        while tasks:
-            # Surface errors as soon as they happen
-            tasks = await wait_for_one(tasks)
-    # Cancel remaining work on error
-    except Exception:
-        for task in tasks:
-            task.cancel()
-        await asyncio.gather(*tasks, return_exceptions=True)
-        raise
+    await stream.map(
+        stream.iterate(product(*[range(n) for n in src_arr.cdata_shape])),
+        copy_chunk,
+        task_limit=io_concurrency,
+    )
 
 
 def append(
