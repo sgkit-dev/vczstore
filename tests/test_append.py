@@ -105,8 +105,8 @@ def test_append():
 
 
 @pytest.mark.parametrize("samples_chunk_size", [1, 2, 4])
-@pytest.mark.parametrize("zarr_backend_storage", [None, "obstore"])
-def test_append_compare_vcf(tmp_path, samples_chunk_size, zarr_backend_storage):
+@pytest.mark.parametrize("backend_storage", [None, "obstore"])
+def test_append_compare_vcf(tmp_path, samples_chunk_size, backend_storage):
     vcz1 = convert_vcf_to_vcz(
         "sample-part1.vcf.gz", tmp_path, samples_chunk_size=samples_chunk_size
     )
@@ -116,7 +116,7 @@ def test_append_compare_vcf(tmp_path, samples_chunk_size, zarr_backend_storage):
     vcztools_out, _ = run_vcztools(f"query -l {vcz1}")
     assert vcztools_out.strip() == "NA00001\nNA00002"
 
-    append(vcz1, vcz2, zarr_backend_storage=zarr_backend_storage)
+    append(vcz1, vcz2, backend_storage=backend_storage)
 
     # check samples query
     vcztools_out, _ = run_vcztools(f"query -l {vcz1}")
@@ -454,13 +454,13 @@ def test_append_icechunk(tmp_path):
     print(vcz2)
 
     # check samples query
-    vcztools_out, _ = run_vcztools(f"query -l {vcz1} --zarr-backend-storage icechunk")
+    vcztools_out, _ = run_vcztools(f"query -l {vcz1} --backend-storage icechunk")
     assert vcztools_out.strip() == "NA00001\nNA00002"
 
-    append(vcz1, vcz2, zarr_backend_storage="icechunk")
+    append(vcz1, vcz2, backend_storage="icechunk")
 
     # check samples query
-    vcztools_out, _ = run_vcztools(f"query -l {vcz1} --zarr-backend-storage icechunk")
+    vcztools_out, _ = run_vcztools(f"query -l {vcz1} --backend-storage icechunk")
     assert vcztools_out.strip() == "NA00001\nNA00002\nNA00003"
 
     # check equivalence with original VCF
@@ -468,7 +468,7 @@ def test_append_icechunk(tmp_path):
         tmp_path,
         "view --no-version",
         "sample.vcf.gz",
-        "view --no-version --zarr-backend-storage icechunk",
+        "view --no-version --backend-storage icechunk",
         vcz1,
     )
 

@@ -24,7 +24,7 @@ def normalise(
     haploid_contigs=None,
     variant_chunks_in_batch=None,
     show_progress=False,
-    zarr_backend_storage=None,
+    backend_storage=None,
 ):
     """Normalise variants in vcz2 with respect to vcz1 and write to vcz2_norm.
 
@@ -47,7 +47,7 @@ def normalise(
     if len(updated_allele_mappings) > 0:
         raise NotImplementedError(f"New alleles found: {updated_allele_mappings}")
 
-    root1 = open_zarr(vcz1, mode="r", backend_storage=zarr_backend_storage)
+    root1 = open_zarr(vcz1, mode="r", backend_storage=backend_storage)
     # assume vcz2, vcz2_norm are local
     root2 = zarr.open(vcz2, mode="r")
     norm_root = zarr.open(vcz2_norm, mode="w", zarr_format=root2.metadata.zarr_format)
@@ -194,7 +194,7 @@ def remap_genotypes(gt, indices, mappings):
                     gt[i, j, k] = mapping[val]
 
 
-def index_variants(vcz1, vcz2, *, show_progress=False, zarr_backend_storage=None):
+def index_variants(vcz1, vcz2, *, show_progress=False, backend_storage=None):
     """Construct an index for variants of vcz2 that are in vcz1.
 
     Returns:
@@ -210,7 +210,7 @@ def index_variants(vcz1, vcz2, *, show_progress=False, zarr_backend_storage=None
     is a remapping. This is an efficient way to store allele mappings, since they
     are rare, and are not known ahead of time.
     """
-    root1 = open_zarr(vcz1, mode="r", backend_storage=zarr_backend_storage)
+    root1 = open_zarr(vcz1, mode="r", backend_storage=backend_storage)
     root2 = zarr.open(vcz2, mode="r")  # assume local
 
     if not np.all(root1["contig_id"][:] == root2["contig_id"][:]):

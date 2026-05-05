@@ -135,7 +135,7 @@ def append(
     *,
     io_concurrency=None,
     require_direct_copy=False,
-    zarr_backend_storage=None,
+    backend_storage=None,
 ):
     """Append vcz2 to vcz1 in place"""
     if io_concurrency is None:
@@ -143,7 +143,7 @@ def append(
     if io_concurrency < 1:
         raise ValueError("io_concurrency must be greater than or equal to 1")
 
-    if zarr_backend_storage == "icechunk":
+    if backend_storage == "icechunk":
         from vczstore.utils import icechunk_transaction
 
         cm = icechunk_transaction(vcz1, "main", message="append")
@@ -151,7 +151,7 @@ def append(
         cm = nullcontext(vcz1)
 
     with cm as vcz1:
-        root1 = open_zarr(vcz1, mode="r+", backend_storage=zarr_backend_storage)
+        root1 = open_zarr(vcz1, mode="r+", backend_storage=backend_storage)
         root2 = zarr.open(vcz2, mode="r")  # assume local
 
         # check preconditions

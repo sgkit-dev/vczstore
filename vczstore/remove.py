@@ -34,7 +34,7 @@ def remove(
     *,
     variant_chunks_in_batch=None,
     show_progress=False,
-    zarr_backend_storage=None,
+    backend_storage=None,
 ):
     """Remove a sample from vcz and overwrite with missing data"""
 
@@ -43,14 +43,14 @@ def remove(
     if variant_chunks_in_batch < 1:
         raise ValueError("variant_chunks_in_batch must be greater than or equal to 1")
 
-    if zarr_backend_storage == "icechunk":
+    if backend_storage == "icechunk":
         from vczstore.utils import icechunk_transaction
 
         cm = icechunk_transaction(vcz, "main", message="remove")
     else:
         cm = nullcontext(vcz)
     with cm as vcz:
-        root = open_zarr(vcz, mode="r+", backend_storage=zarr_backend_storage)
+        root = open_zarr(vcz, mode="r+", backend_storage=backend_storage)
         n_variants = root["variant_contig"].shape[0]
         all_samples = root["sample_id"][:]
 

@@ -123,22 +123,22 @@ NA00003
 % rm -rf data/sample-part1.vcf.vcz
 
 # Show the samples in each
-% uv run vcztools query -l data/store.vcz --zarr-backend-storage icechunk
+% uv run vcztools query -l data/store.vcz --backend-storage icechunk
 NA00001
 NA00002
 % uv run vcztools query -l data/sample-part2.vcf.vcz
 NA00003
 
 # Append data to the store
-% uv run vczstore append data/store.vcz data/sample-part2.vcf.vcz --zarr-backend-storage icechunk
-% uv run vcztools query -l data/store.vcz --zarr-backend-storage icechunk
+% uv run vczstore append data/store.vcz data/sample-part2.vcf.vcz --backend-storage icechunk
+% uv run vcztools query -l data/store.vcz --backend-storage icechunk
 NA00001
 NA00002
 NA00003
 
 # Remove a sample from the store
-% uv run vczstore remove data/store.vcz NA00002 --zarr-backend-storage icechunk
-% uv run vcztools query -l data/store.vcz --zarr-backend-storage icechunk
+% uv run vczstore remove data/store.vcz NA00002 --backend-storage icechunk
+% uv run vcztools query -l data/store.vcz --backend-storage icechunk
 NA00001
 NA00003
 ```

@@ -45,8 +45,8 @@ progress = click.option(
     help="Show progress bars (default: show)",
 )
 
-zarr_backend_storage = click.option(
-    "--zarr-backend-storage",
+backend_storage = click.option(
+    "--backend-storage",
     type=click.Choice(["obstore", "icechunk"]),
     default=None,
     show_default="local if not specified",
@@ -66,7 +66,7 @@ variant_chunks_in_batch = click.option(
 @click.argument("vcz1", type=click.Path())
 @click.argument("vcz2", type=click.Path())
 @verbose
-@zarr_backend_storage
+@backend_storage
 @click.option(
     "--io-concurrency",
     type=click.IntRange(min=1),
@@ -82,9 +82,7 @@ variant_chunks_in_batch = click.option(
         "This requires a sample chunk-aligned destination and incoming sample count."
     ),
 )
-def append(
-    vcz1, vcz2, verbose, zarr_backend_storage, io_concurrency, require_direct_copy
-):
+def append(vcz1, vcz2, verbose, backend_storage, io_concurrency, require_direct_copy):
     """Append vcz2 to vcz1 in place"""
     setup_logging(verbose)
     call_or_error(
@@ -93,7 +91,7 @@ def append(
         vcz2,
         io_concurrency=io_concurrency,
         require_direct_copy=require_direct_copy,
-        zarr_backend_storage=zarr_backend_storage,
+        backend_storage=backend_storage,
     )
 
 
@@ -104,7 +102,7 @@ def append(
 @variant_chunks_in_batch
 @verbose
 @progress
-@zarr_backend_storage
+@backend_storage
 def normalise(
     vcz1,
     vcz2,
@@ -112,7 +110,7 @@ def normalise(
     variant_chunks_in_batch,
     verbose,
     progress,
-    zarr_backend_storage,
+    backend_storage,
 ):
     """Normalise variants in vcz2 with respect to vcz1 and write to vcz2_norm"""
     setup_logging(verbose)
@@ -123,7 +121,7 @@ def normalise(
         vcz2_norm,
         variant_chunks_in_batch=variant_chunks_in_batch,
         show_progress=progress,
-        zarr_backend_storage=zarr_backend_storage,
+        backend_storage=backend_storage,
     )
 
 
@@ -133,10 +131,8 @@ def normalise(
 @variant_chunks_in_batch
 @verbose
 @progress
-@zarr_backend_storage
-def remove(
-    vcz, sample_id, variant_chunks_in_batch, verbose, progress, zarr_backend_storage
-):
+@backend_storage
+def remove(vcz, sample_id, variant_chunks_in_batch, verbose, progress, backend_storage):
     """Remove a sample from vcz and overwrite with missing data"""
     setup_logging(verbose)
     call_or_error(
@@ -145,7 +141,7 @@ def remove(
         sample_id,
         variant_chunks_in_batch=variant_chunks_in_batch,
         show_progress=progress,
-        zarr_backend_storage=zarr_backend_storage,
+        backend_storage=backend_storage,
     )
 
 

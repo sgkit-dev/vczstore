@@ -33,8 +33,8 @@ from .utils import (
     ("zarr_backend_storage_args", "expected_zarr_backend_storage"),
     [
         ([], None),
-        (["--zarr-backend-storage", "icechunk"], "icechunk"),
-        (["--zarr-backend-storage", "obstore"], "obstore"),
+        (["--backend-storage", "icechunk"], "icechunk"),
+        (["--backend-storage", "obstore"], "obstore"),
     ],
 )
 def test_commands_pass_arguments_and_options(
@@ -50,10 +50,10 @@ def test_commands_pass_arguments_and_options(
 ):
     seen = {}
 
-    def fake_function(*args, show_progress=False, zarr_backend_storage=None, **kwargs):
+    def fake_function(*args, show_progress=False, backend_storage=None, **kwargs):
         seen["args"] = args
         seen["show_progress"] = show_progress
-        seen["zarr_backend_storage"] = zarr_backend_storage
+        seen["backend_storage"] = backend_storage
 
     monkeypatch.setattr(cli, function_name, fake_function)
 
@@ -67,7 +67,7 @@ def test_commands_pass_arguments_and_options(
     assert result.exit_code == 0
     assert seen["args"] == expected_args
     assert seen["show_progress"] is expected_progress
-    assert seen["zarr_backend_storage"] == expected_zarr_backend_storage
+    assert seen["backend_storage"] == expected_zarr_backend_storage
 
 
 def test_copy_store_to_icechunk_cli_delegates_to_copy_function(monkeypatch):
@@ -149,11 +149,11 @@ def test_invalid_zarr_backend_storage_is_rejected(command, command_args):
     runner = ct.CliRunner()
     result = runner.invoke(
         cli.vczstore_main,
-        [command, "--zarr-backend-storage", "bogus", *command_args],
+        [command, "--backend-storage", "bogus", *command_args],
     )
 
     assert result.exit_code == 2
-    assert "Invalid value for '--zarr-backend-storage'" in result.output
+    assert "Invalid value for '--backend-storage'" in result.output
     assert "bogus" in result.output
 
 
