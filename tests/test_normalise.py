@@ -385,6 +385,6 @@ def test_normalise_and_append_icechunk(tmp_path):
         tmp_path,
         "view --no-version",
         "sample-part1.vcf.gz",
-        "view --no-version --zarr-backend-storage icechunk",
+        "view --no-version --backend-storage icechunk",
         vcz0,
     )
