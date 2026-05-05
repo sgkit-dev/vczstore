@@ -79,7 +79,7 @@ def _copy_encoded_chunks_error(name, arr1, arr2):
 
 
 async def _copy_encoded_chunks(
-    dst_arr, src_arr, *, src_start, dst_start, count, io_concurrency
+    dst_arr, src_arr, *, dst_num_sample_chunks, io_concurrency
 ):
     async def copy_chunk(src_coords, dst_coords):
         src_key = src_arr.store_path / src_arr.metadata.encode_chunk_key(src_coords)
@@ -100,24 +100,15 @@ async def _copy_encoded_chunks(
 
     tasks = set()
     try:
-        for variant_chunk in range(src_arr.cdata_shape[0]):
-            for sample_offset in range(count // dst_arr.chunks[1]):
-                for extra_chunk_coords in product(
-                    *[range(n) for n in src_arr.cdata_shape[2:]]
-                ):
-                    src_coords = (
-                        variant_chunk,
-                        src_start // src_arr.chunks[1] + sample_offset,
-                        *extra_chunk_coords,
-                    )
-                    dst_coords = (
-                        variant_chunk,
-                        dst_start // dst_arr.chunks[1] + sample_offset,
-                        *extra_chunk_coords,
-                    )
-                    if len(tasks) >= io_concurrency:
-                        tasks = await wait_for_one(tasks)
-                    tasks.add(asyncio.create_task(copy_chunk(src_coords, dst_coords)))
+        for src_coords in product(*[range(n) for n in src_arr.cdata_shape]):
+            dst_coords = (
+                src_coords[:1]
+                + (dst_num_sample_chunks + src_coords[1],)
+                + src_coords[2:]
+            )
+            if len(tasks) >= io_concurrency:
+                tasks = await wait_for_one(tasks)
+            tasks.add(asyncio.create_task(copy_chunk(src_coords, dst_coords)))
         while tasks:
             # Surface errors as soon as they happen
             tasks = await wait_for_one(tasks)
@@ -182,15 +173,16 @@ def append(
                     )
                 arr1 = root1[var]
                 arr2 = root2[var]
+                arr1_num_sample_chunks = arr1.cdata_shape[1]
                 _assert_append_arrays_compatible(var, arr1, arr2)
-                call_arrays.append((var, arr1, arr2))
+                call_arrays.append((var, arr1, arr2, arr1_num_sample_chunks))
         _assert_variant_chunk_alignment(
-            [(var, arr1) for var, arr1, _ in call_arrays],
+            [(var, arr1) for var, arr1, _, _ in call_arrays],
             variant_chunk_size=root1["variant_contig"].chunks[0],
             operation="append",
         )
         _assert_variant_chunk_alignment(
-            [(var, arr2) for var, _, arr2 in call_arrays],
+            [(var, arr2) for var, _, arr2, _ in call_arrays],
             variant_chunk_size=root2["variant_contig"].chunks[0],
             operation="append",
         )
@@ -204,7 +196,7 @@ def append(
         new_num_samples = old_num_samples + incoming_num_samples
 
         if require_direct_copy:
-            for name, arr1, arr2 in call_arrays:
+            for name, arr1, arr2, _ in call_arrays:
                 sample_chunk_size = arr1.chunks[1]
                 if (
                     old_num_samples % sample_chunk_size
@@ -222,13 +214,13 @@ def append(
         sample_id1.resize((new_num_samples,))
 
         # resize genotype fields
-        for _, arr, _ in call_arrays:
+        for _, arr, _, _ in call_arrays:
             arr.resize((arr.shape[0], new_num_samples, *arr.shape[2:]))
 
         sample_id1[old_num_samples:new_num_samples] = sample_id2[:]
 
         with zarr.config.set({"async.concurrency": io_concurrency}):
-            for name, arr1, arr2 in call_arrays:
+            for name, arr1, arr2, arr1_num_sample_chunks in call_arrays:
                 sample_chunk_size = arr1.chunks[1]
                 if (
                     old_num_samples % sample_chunk_size == 0
@@ -245,9 +237,7 @@ def append(
                         _copy_encoded_chunks(
                             arr1,
                             arr2,
-                            src_start=0,
-                            dst_start=old_num_samples,
-                            count=direct_count,
+                            dst_num_sample_chunks=arr1_num_sample_chunks,
                             io_concurrency=io_concurrency,
                         )
                     )
