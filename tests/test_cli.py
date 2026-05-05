@@ -73,8 +73,9 @@ def test_commands_pass_arguments_and_options(
 def test_copy_store_to_icechunk_cli_delegates_to_copy_function(monkeypatch):
     seen = {}
 
-    def fake_copy_store_to_icechunk(source, dest):
+    def fake_copy_store_to_icechunk(source, dest, *, io_concurrency=None):
         seen["args"] = (source, dest)
+        seen["io_concurrency"] = io_concurrency
 
     monkeypatch.setattr(
         "vczstore.utils.copy_store_to_icechunk", fake_copy_store_to_icechunk
@@ -83,12 +84,15 @@ def test_copy_store_to_icechunk_cli_delegates_to_copy_function(monkeypatch):
     runner = ct.CliRunner()
     result = runner.invoke(
         cli.vczstore_main,
-        ["copy-store-to-icechunk", "left", "right"],
+        ["copy-store-to-icechunk", "--io-concurrency", "64", "left", "right"],
         catch_exceptions=False,
     )
 
     assert result.exit_code == 0
-    assert seen["args"] == ("left", "right")
+    assert seen == {
+        "args": ("left", "right"),
+        "io_concurrency": 64,
+    }
 
 
 def test_append_cli_passes_io_concurrency_and_direct_copy_flag(monkeypatch):

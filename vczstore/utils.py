@@ -1,13 +1,20 @@
+import os
 from collections.abc import Callable
 from contextlib import contextmanager
 from typing import Any
 
 import tqdm
+from aiostream import stream
 from bio2zarr.vcf_utils import ceildiv
 from vcztools.constants import FLOAT32_MISSING, INT_MISSING, STR_MISSING
 from vcztools.utils import make_icechunk_storage
+from zarr.core.buffer.core import default_buffer_prototype
 from zarr.core.sync import sync
 from zarr.storage._common import make_store
+
+ZARR_METADATA_FILENAMES = frozenset(
+    ("zarr.json", ".zarray", ".zattrs", ".zgroup", ".zmetadata")
+)
 
 
 def missing_val(arr):
@@ -45,26 +52,64 @@ def progress_bar(total, title, show_progress=False, unit="vars"):
     )
 
 
-# inspired by commit f3c123d3a2a94b7f14bc995e3897ee6acc9acbd1 in zarr-python
-def copy_store(source, dest, array_keys=None):
-    from zarr.core.buffer.core import default_buffer_prototype
-    from zarr.testing.stateful import SyncStoreWrapper
+def is_metadata_key(key):
+    return key.rsplit("/", 1)[-1] in ZARR_METADATA_FILENAMES
 
-    # ensure source and dest are both stores
+
+def split_metadata_and_data_keys(keys):
+    ordered_keys = sorted(keys, reverse=True)
+    metadata_keys = []
+    data_keys = []
+    for key in ordered_keys:
+        if is_metadata_key(key):
+            metadata_keys.append(key)
+        else:
+            data_keys.append(key)
+    return metadata_keys, data_keys
+
+
+async def copy_store_async(source, dest, *, array_keys=None, io_concurrency):
+    source_keys = [key async for key in source.list()]
+
+    if array_keys is not None:
+        source_keys = [
+            source_key
+            for source_key in source_keys
+            if source_key.split("/")[0] in array_keys
+        ]
+
+    metadata_keys, data_keys = split_metadata_and_data_keys(source_keys)
+    prototype = default_buffer_prototype()
+
+    async def _copy_one_key(key):
+        buffer = await source.get(key, prototype=prototype)
+        if buffer is None:
+            raise FileNotFoundError(key)
+        await dest.set(key, buffer)
+
+    for key in metadata_keys:
+        await _copy_one_key(key)
+
+    await stream.map(
+        stream.iterate(data_keys), _copy_one_key, task_limit=io_concurrency
+    )
+
+
+def copy_store(source, dest, *, array_keys=None, io_concurrency=None):
+    if io_concurrency is None:
+        io_concurrency = (os.cpu_count() or 1) * 4
+    if io_concurrency < 1:
+        raise ValueError("io_concurrency must be greater than or equal to 1")
     source = sync(make_store(source))
     dest = sync(make_store(dest))
-
-    s = SyncStoreWrapper(source)
-    d = SyncStoreWrapper(dest)
-    # need reverse=True to create zarr.json before chunks (otherwise icechunk complains)
-    for source_key in sorted(s.list(), reverse=True):
-        if array_keys is not None and source_key.split("/")[0] not in array_keys:
-            continue
-        buffer = s.get(source_key, default_buffer_prototype())
-        d.set(source_key, buffer)
+    sync(
+        copy_store_async(
+            source, dest, array_keys=array_keys, io_concurrency=io_concurrency
+        )
+    )
 
 
-def copy_store_to_icechunk(source, dest):
+def copy_store_to_icechunk(source, dest, *, io_concurrency=None):
     """Copy a Zarr store to a new Icechunk store."""
     from icechunk import Repository
 
@@ -72,7 +117,7 @@ def copy_store_to_icechunk(source, dest):
     repo = Repository.create(icechunk_storage)
 
     with repo.transaction("main", message="create") as dest:
-        copy_store(source, dest)
+        copy_store(source, dest, io_concurrency=io_concurrency)
 
 
 @contextmanager
