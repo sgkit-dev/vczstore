@@ -10,7 +10,7 @@ VCF Zarr files (also known as VCZ files) can be created using [bio2zarr](https:/
 
 Vczstore solves the update use case by providing the following operations
 
-1. **Create** a VCZ store with a known set of variants
+1. **Create** an empty VCZ store with a known set of variants
 2. **Append** new samples to a VCZ store
 3. **Remove** samples from a VCZ store
 
@@ -30,7 +30,9 @@ Multiallelic sites, and split alleles (mutiple records for a site) are both acce
 
 ### Creating a store
 
-A VCZ store is just a VCZ file - typically in cloud object store - so it's possible to create one using bio2zarr (e.g. vcf2zarr). However, when the VCFs being appended contain different variants the store must be created with the full set of variants. This is achieved by merging a small number of VCFs that collectively define the set of variants (e.g. one for each genotype array), using a `vcf-merge-stable` [tool](https://github.com/tomwhite/vcf-merge-stable) that is similar to `bcftools merge`, but provides a stability guarantee that is required when working with Zarr.
+A VCZ store is just a VCZ file - typically in cloud object store - so it's possible to create one using bio2zarr (e.g. vcf2zarr).
+
+However, when the VCFs being appended contain different variants the store must be created with the full set of variants. This is achieved by calling `vczstore create` with the VCZ files that collectively define the set of variants (e.g. one for each genotype array). (Currently `vczstore create` can only be called with two arguments - but you can call it repeatedly to built up the store from multiple files.)
 
 After creation the store contains no samples.
 
