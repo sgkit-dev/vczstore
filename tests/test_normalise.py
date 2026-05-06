@@ -312,6 +312,27 @@ def test_normalise(variants_chunk_size, variant_chunks_in_batch):
         ],
     )
 
+    # finally call append to check that new allele is picked up
+    append(vcz1, vcz2_norm)
+
+    root1 = zarr.open(vcz1)
+
+    assert_array_equal(
+        root1["variant_allele"][:],
+        [
+            ["A", "T", ""],
+            ["A", "C", ""],
+            ["A", "G", ""],
+            ["A", "C", ""],
+            ["A", "G", "T"],
+            ["A", "G", ""],
+            ["A", "T", "C"],
+            ["A", "G", "T"],
+            ["A", "T", "G"],
+            ["A", "T", "C"],  # new allele (C)
+        ],
+    )
+
 
 @pytest.mark.parametrize("variants_chunk_size", [None, 1, 2, 4])
 def test_normalise_different_ploidy(variants_chunk_size):

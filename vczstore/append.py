@@ -9,6 +9,8 @@ from aiostream import stream
 from vcztools.utils import array_dims, open_zarr
 from zarr.core.sync import sync
 
+from vczstore.utils import copy_store
+
 logger = logging.getLogger(__name__)
 
 
@@ -127,6 +129,11 @@ def append(
         root1 = open_zarr(vcz1, mode="r+", backend_storage=backend_storage)
         root2 = zarr.open(vcz2, mode="r")  # assume local
 
+        # normalise will set the 'normalise_new_alleles' flag if there are new alleles
+        normalise_new_alleles = root2["variant_allele"].attrs.get(
+            "normalise_new_alleles", False
+        )
+
         # check preconditions
         n_variants1 = root1["variant_contig"].shape[0]
         n_variants2 = root2["variant_contig"].shape[0]
@@ -135,12 +142,10 @@ def append(
                 "Stores being appended must have same number of variants. "
                 f"First has {n_variants1}, second has {n_variants2}"
             )
-        for field in (
-            "contig_id",
-            "variant_contig",
-            "variant_position",
-            "variant_allele",
-        ):
+        fields = ["contig_id", "variant_contig", "variant_position"]
+        if not normalise_new_alleles:
+            fields.append("variant_allele")
+        for field in fields:
             if not np.array_equal(root1[field][:], root2[field][:]):
                 raise ValueError(
                     f"Stores being appended must have same values for field '{field}'"
@@ -228,3 +233,7 @@ def append(
                     arr1[:, old_num_samples + direct_count : new_num_samples, ...] = (
                         arr2[:, direct_count:incoming_num_samples, ...]
                     )
+
+        if normalise_new_alleles:
+            # overwrite variant_allele
+            copy_store(vcz2, vcz1, array_keys=["variant_allele"])
