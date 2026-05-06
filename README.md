@@ -24,7 +24,9 @@ If the source VCFs have different (but typically overlapping) sets of variants, 
 
 The append operation will perform a check that the contig, position and allele (REF and ALT) fields all match before performing the update. It will fail if there is a mismatch, so samples with inconsistent variant sets cannot be appended. The check is strict - allele ordering must match exactly too.
 
-Multiallelic sites, and split alleles (mutiple records for a site) are both accepted, as long as the ordering is consistent for all source VCFs. 
+In rare cases, samples may have new alleles at a site. This is permitted and as long as the `--allow-new-alleles` option is used with `vczstore normalise`, the new alleles will be added to the `variant_allele` array when `vczstore append` is used to append the new samples.
+
+Multiallelic sites, and split alleles (mutiple records for a site) are both accepted, as long as the ordering is consistent for all source VCZs. 
 
 ## Operations
 
