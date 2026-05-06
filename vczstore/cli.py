@@ -181,6 +181,7 @@ def copy_store_to_icechunk(vcz1, vcz2, verbose, io_concurrency):
 
 
 @click.group(cls=NaturalOrderGroup, name="vczstore")
+@click.version_option()
 def vczstore_main():
     pass
 
