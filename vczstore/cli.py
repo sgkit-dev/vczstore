@@ -57,19 +57,21 @@ variant_chunks_in_batch = click.option(
     help="The number of variant chunks to process in each batch",
 )
 
-
-@click.command()
-@click.argument("vcz1", type=click.Path())
-@click.argument("vcz2", type=click.Path())
-@verbose
-@backend_storage
-@click.option(
+io_concurrency = click.option(
     "--io-concurrency",
     type=click.IntRange(min=1),
     default=None,
     show_default="4 x CPU cores",
     help="Maximum concurrent chunk copy operations.",
 )
+
+
+@click.command()
+@click.argument("vcz1", type=click.Path())
+@click.argument("vcz2", type=click.Path())
+@verbose
+@backend_storage
+@io_concurrency
 @click.option(
     "--require-direct-copy",
     is_flag=True,
@@ -165,14 +167,17 @@ def remove(vcz, sample_id, variant_chunks_in_batch, verbose, progress, backend_s
 @click.argument("vcz1", type=click.Path())
 @click.argument("vcz2", type=click.Path())
 @verbose
-def copy_store_to_icechunk(vcz1, vcz2, verbose):
+@io_concurrency
+def copy_store_to_icechunk(vcz1, vcz2, verbose, io_concurrency):
     """Copy a Zarr store to a new Icechunk store"""
     from vczstore.utils import (
         copy_store_to_icechunk as copy_store_to_icechunk_function,
     )
 
     setup_logging(verbose)
-    call_or_error(copy_store_to_icechunk_function, vcz1, vcz2)
+    call_or_error(
+        copy_store_to_icechunk_function, vcz1, vcz2, io_concurrency=io_concurrency
+    )
 
 
 @click.group(cls=NaturalOrderGroup, name="vczstore")

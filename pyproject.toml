@@ -16,6 +16,7 @@ authors = [
   {name = "sgkit Developers", email = "project@sgkit.dev"},
 ]
 dependencies = [
+  "aiostream>=0.7.1",
   "bio2zarr @ git+https://github.com/sgkit-dev/bio2zarr.git",
   "click>=8.2.0",
   "more_itertools",
