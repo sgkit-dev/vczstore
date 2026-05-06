@@ -243,6 +243,8 @@ def index_variants(vcz1, vcz2, *, show_progress=False, backend_storage=None):
     is a remapping. This is an efficient way to store allele mappings, since they
     are rare, and are not known ahead of time.
     """
+    logger.info("Indexing variants")
+
     root1 = open_zarr(vcz1, mode="r", backend_storage=backend_storage)
     root2 = zarr.open(vcz2, mode="r")  # assume local
 
@@ -376,6 +378,11 @@ def index_variants(vcz1, vcz2, *, show_progress=False, backend_storage=None):
                     "Variant in vcz2 not found in vcz1 (or vcz2 is out of order): "
                     f"{variant_repr(contig_id2, variant_contig2, variant_position2, variant_allele2, i2)}"  # noqa E501
                 )
+
+    logger.info(
+        f"index_variants: found {len(allele_mappings)} site(s) with allele remappings, "
+        f"and {len(updated_allele_mappings)} site(s) with new alleles"
+    )
 
     return (
         index,
