@@ -46,7 +46,7 @@ def normalise(
     )
 
     if not allow_new_alleles and len(updated_allele_mappings) > 0:
-        raise NotImplementedError(
+        raise ValueError(
             "New alleles found and `--allow-new-alleles` not specified: "
             f"{updated_allele_mappings}"
         )
