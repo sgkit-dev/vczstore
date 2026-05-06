@@ -135,7 +135,13 @@ def _compute_merged_variants(
     Optional fields (length, id, quality, filter_) are None when either store
     lacks the corresponding arrays. filter_ requires identical filter_id arrays.
     """
-    with progress_bar(6, "Read", show_progress, unit="array") as pbar:
+
+    logger.info("Computing merged variants")
+
+    has_length = "variant_length" in root1 and "variant_length" in root2
+    num_arrays_to_read = 8 if has_length else 6
+
+    with progress_bar(num_arrays_to_read, "Read", show_progress, unit="array") as pbar:
         vc1 = root1["variant_contig"][:]
         pbar.update()
         vp1 = root1["variant_position"][:]
@@ -148,11 +154,11 @@ def _compute_merged_variants(
         pbar.update()
         va2 = root2["variant_allele"][:]
         pbar.update()
-
-    has_length = "variant_length" in root1 and "variant_length" in root2
-    if has_length:
-        vl1 = root1["variant_length"][:]
-        vl2 = root2["variant_length"][:]
+        if has_length:
+            vl1 = root1["variant_length"][:]
+            pbar.update()
+            vl2 = root2["variant_length"][:]
+            pbar.update()
 
     has_id = "variant_id" in root1 and "variant_id" in root2
     if has_id:
@@ -179,6 +185,8 @@ def _compute_merged_variants(
         vf2 = root2["variant_filter"][:]
 
     n1, n2 = len(vc1), len(vc2)
+    logger.debug(f"_compute_merged_variants: loaded {n1} variants from vcz1")
+    logger.debug(f"_compute_merged_variants: loaded {n2} variants from vcz2")
 
     if n1 == 0 and n2 == 0:
         empty_int = np.array([], dtype=np.int32)
@@ -392,6 +400,14 @@ def _compute_merged_variants(
     n_py = len(python_output)
     n_out = n_v1 + n_v2 + n_ex + n_py
 
+    logger.debug(
+        f"_compute_merged_variants: {n_out} variants total, comprising "
+        f"{n_v1} variants only in vcz1, "
+        f"{n_v2} variants only in vcz2, "
+        f"{n_ex} variants in both with exact allele match, "
+        f"{n_py} variants in both with complex matching"
+    )
+
     # Sort keys and tiebreaks for all output records
     all_keys = np.empty(n_out, dtype=np.int64)
     all_keys[:n_v1] = keys1[vcz1_only_idx]
@@ -549,8 +565,10 @@ def create(vcz1, vcz2, vcz_out, *, show_progress=False, backend_storage=None) ->
         for var in root1.keys()
         if var.startswith("contig_") or var.startswith("filter_")
     ]
+    logger.debug(f"Copying arrays for {', '.join(vcz1_copy_vars)}")
     copy_store(vcz1, vcz_out, array_keys=vcz1_copy_vars)
 
+    logger.debug("Creating variant arrays")
     arr = root1["variant_contig"]
     create_group_array(
         out_root,
@@ -646,7 +664,7 @@ def create(vcz1, vcz2, vcz_out, *, show_progress=False, backend_storage=None) ->
         dimension_names=["variants", "alleles"],
     )
 
-    # create empty sample and call arrays
+    logger.debug("Creating empty sample and call arrays")
     for var in root1.keys():
         if var.startswith("call_"):
             arr = root1[var]

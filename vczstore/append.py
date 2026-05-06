@@ -181,6 +181,11 @@ def append(
         old_num_samples = sample_id1.shape[0]
         incoming_num_samples = sample_id2.shape[0]
         new_num_samples = old_num_samples + incoming_num_samples
+        logger.info(
+            f"Old num samples: {old_num_samples}, "
+            f"incoming num samples: {incoming_num_samples}, "
+            f"new num samples: {new_num_samples}"
+        )
 
         if require_direct_copy:
             for name, arr1, arr2, _ in call_arrays:
@@ -220,6 +225,7 @@ def append(
                     direct_count = 0
 
                 if direct_count:
+                    logger.debug(f"Copying encoded chunks for {name} (fast path)")
                     sync(
                         _copy_encoded_chunks(
                             arr1,
@@ -230,10 +236,11 @@ def append(
                     )
 
                 if direct_count < incoming_num_samples:
+                    logger.debug(f"Copying data for {name} (not fast path)")
                     arr1[:, old_num_samples + direct_count : new_num_samples, ...] = (
                         arr2[:, direct_count:incoming_num_samples, ...]
                     )
 
         if normalise_new_alleles:
-            # overwrite variant_allele
+            logger.info("Overwriting variant_allele array since new alleles present")
             copy_store(vcz2, vcz1, array_keys=["variant_allele"])
