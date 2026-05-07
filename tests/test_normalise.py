@@ -14,12 +14,7 @@ from vczstore.normalise import (
     variant_alleles_are_equivalent,
 )
 
-from .utils import (
-    compare_vcf_and_vcz,
-    convert_vcf_to_vcz,
-    convert_vcf_to_vcz_icechunk,
-    make_vcz,
-)
+from .utils import make_vcz
 
 
 @pytest.mark.parametrize(
@@ -409,41 +404,3 @@ def test_normalise__other_call_fields_not_implemented():
 
     with pytest.raises(NotImplementedError):
         normalise(vcz1, vcz2, vcz2_norm)
-
-
-def test_normalise_and_append(tmp_path):
-    vcz0 = convert_vcf_to_vcz("sample-variants.vcf.gz", tmp_path, ploidy=2)
-    vcz1 = convert_vcf_to_vcz("sample-part1.vcf.gz", tmp_path)
-    vcz1_norm = zarr.storage.MemoryStore()
-
-    normalise(vcz0, vcz1, vcz1_norm)
-
-    append(vcz0, vcz1_norm)
-
-    # check equivalence with original VCF
-    compare_vcf_and_vcz(
-        tmp_path, "view --no-version", "sample-part1.vcf.gz", "view --no-version", vcz0
-    )
-
-
-def test_normalise_and_append_icechunk(tmp_path):
-    pytest.importorskip("icechunk")
-    from vczstore.utils import icechunk_transaction
-
-    # note that vcz0 is in icechunk, but the others needn't be
-    vcz0 = convert_vcf_to_vcz_icechunk("sample-variants.vcf.gz", tmp_path, ploidy=2)
-    vcz1 = convert_vcf_to_vcz("sample-part1.vcf.gz", tmp_path, zarr_format=3)
-    vcz1_norm = zarr.storage.MemoryStore()
-
-    with icechunk_transaction(vcz0, "main", message="append") as store:
-        normalise(store, vcz1, vcz1_norm)
-        append(store, vcz1_norm)
-
-    # check equivalence with original VCF
-    compare_vcf_and_vcz(
-        tmp_path,
-        "view --no-version",
-        "sample-part1.vcf.gz",
-        "view --no-version --backend-storage icechunk",
-        vcz0,
-    )

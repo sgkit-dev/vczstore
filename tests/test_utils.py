@@ -3,10 +3,12 @@ import asyncio
 import numpy as np
 import pytest
 import zarr
+from vcztools.utils import make_icechunk_storage, open_zarr
 
 from vczstore.utils import (
     copy_store,
     copy_store_async,
+    icechunk_transaction,
     merge_with,
     split_metadata_and_data_keys,
 )
@@ -204,3 +206,36 @@ def test_copy_store_wrapper_produces_identical_contents(io_concurrency):
     )
     np.testing.assert_array_equal(copied["call_genotype"][:], root["call_genotype"][:])
     assert copied.attrs.asdict() == root.attrs.asdict()
+
+
+def test_icechunk_transaction(tmp_path):
+    from icechunk import Repository
+
+    path = tmp_path / "icechunk"
+    with icechunk_transaction(
+        path, "main", message="commit 1", create_repo=True
+    ) as store:
+        root = open_zarr(store, mode="w", zarr_format=3, backend_storage="icechunk")
+        root.create_array("variant_position", shape=(4,), dtype="int32")
+        root["variant_position"][:] = [10, 20, 30, 40]
+
+    root = open_zarr(path, backend_storage="icechunk")
+    np.testing.assert_array_equal(root["variant_position"][:], [10, 20, 30, 40])
+
+    icechunk_storage = make_icechunk_storage(path)
+    repo = Repository.open(icechunk_storage)
+    snapshots = [snapshot for snapshot in repo.ancestry(branch="main")]
+    assert len(snapshots) == 2
+    assert snapshots[0].message == "commit 1"
+    assert snapshots[1].message == "Repository initialized"
+
+    with icechunk_transaction(path, "main", message="amend 1") as store:
+        root = open_zarr(store, mode="r+", zarr_format=3, backend_storage="icechunk")
+        root["variant_position"][1] = -1
+
+    repo = Repository.open(icechunk_storage)
+    snapshots = [snapshot for snapshot in repo.ancestry(branch="main")]
+    assert len(snapshots) == 2
+    # note that "commit 1" has been deleted
+    assert snapshots[0].message == "amend 1"
+    assert snapshots[1].message == "Repository initialized"
