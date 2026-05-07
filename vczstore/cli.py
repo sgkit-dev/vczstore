@@ -94,20 +94,18 @@ def append(vcz1, vcz2, verbose, backend_storage, io_concurrency, require_direct_
 
 
 @click.command()
-@click.argument("vcz1", type=click.Path())
-@click.argument("vcz2", type=click.Path())
 @click.argument("vcz_out", type=click.Path())
+@click.argument("vczs", nargs=-1, type=click.Path())
 @verbose
 @progress
 @backend_storage
-def create(vcz1, vcz2, vcz_out, verbose, progress, backend_storage):
-    """Create a new, empty store vcz_out using merged variants from vcz1 and vcz2"""
+def create(vcz_out, vczs, verbose, progress, backend_storage):
+    """Create a new, empty store VCZ_OUT using merged variants from VCZS"""
     setup_logging(verbose)
     call_or_error(
         create_function,
-        vcz1,
-        vcz2,
         vcz_out,
+        *vczs,
         show_progress=progress,
         backend_storage=backend_storage,
     )

@@ -53,7 +53,7 @@ def test_create__no_match():
     vcz1 = make_vcz([0], [100], [["A", "T"]])
     vcz2 = make_vcz([0], [100], [["A", "C"]])
     vcz_out = zarr.storage.MemoryStore()
-    create(vcz1, vcz2, vcz_out)
+    create(vcz_out, vcz1, vcz2)
     root = zarr.open(vcz_out)
     assert_array_equal(root["variant_position"][:], [100, 100])
     assert root["variant_allele"][0, 0] == "A"
@@ -67,7 +67,7 @@ def test_create__identical():
     vcz1 = make_vcz([0], [100], [["A", "T"]])
     vcz2 = make_vcz([0], [100], [["A", "T"]])
     vcz_out = zarr.storage.MemoryStore()
-    create(vcz1, vcz2, vcz_out)
+    create(vcz_out, vcz1, vcz2)
     root = zarr.open(vcz_out)
     assert_array_equal(root["variant_position"][:], [100])
     assert_array_equal(root["variant_allele"][:, :2], [["A", "T"]])
@@ -78,7 +78,7 @@ def test_create__overlapping_alts():
     vcz1 = make_vcz([0], [100], [["A", "T", "G"]])
     vcz2 = make_vcz([0], [100], [["A", "C", "G"]])
     vcz_out = zarr.storage.MemoryStore()
-    create(vcz1, vcz2, vcz_out)
+    create(vcz_out, vcz1, vcz2)
     root = zarr.open(vcz_out)
     assert_array_equal(root["variant_position"][:], [100])
     alleles = [a for a in root["variant_allele"][0] if a != ""]
@@ -90,7 +90,7 @@ def test_create__stable_ordering():
     vcz1 = make_vcz([0, 0], [100, 100], [["A", "T"], ["A", "C"]])
     vcz2 = make_vcz([0, 0], [100, 100], [["A", "G"], ["A", "C"]])
     vcz_out = zarr.storage.MemoryStore()
-    create(vcz1, vcz2, vcz_out)
+    create(vcz_out, vcz1, vcz2)
     root = zarr.open(vcz_out)
     assert_array_equal(root["variant_position"][:], [100, 100, 100])
     alts = [root["variant_allele"][i, 1] for i in range(3)]
@@ -102,7 +102,7 @@ def test_create__different_positions():
     vcz1 = make_vcz([0, 0], [100, 200], [["A", "T"], ["C", "G"]])
     vcz2 = make_vcz([0, 0], [150, 200], [["G", "T"], ["C", "G"]])
     vcz_out = zarr.storage.MemoryStore()
-    create(vcz1, vcz2, vcz_out)
+    create(vcz_out, vcz1, vcz2)
     root = zarr.open(vcz_out)
     assert_array_equal(root["variant_position"][:], [100, 150, 200])
 
@@ -112,7 +112,7 @@ def test_create__multi_contig():
     vcz1 = make_vcz([0, 1], [100, 200], [["A", "T"], ["C", "G"]])
     vcz2 = make_vcz([0, 1], [100, 300], [["A", "T"], ["G", "A"]])
     vcz_out = zarr.storage.MemoryStore()
-    create(vcz1, vcz2, vcz_out)
+    create(vcz_out, vcz1, vcz2)
     root = zarr.open(vcz_out)
     assert_array_equal(root["variant_contig"][:], [0, 1, 1])
     assert_array_equal(root["variant_position"][:], [100, 200, 300])
@@ -126,7 +126,7 @@ def test_create__ordering_conflict_raises():
     vcz2 = make_vcz([0, 0], [100, 100], [["A", "C"], ["A", "T"]])
     vcz_out = zarr.storage.MemoryStore()
     with pytest.raises(ValueError, match="ordering conflict"):
-        create(vcz1, vcz2, vcz_out)
+        create(vcz_out, vcz1, vcz2)
 
 
 def test_create__variant_length_max():
@@ -134,7 +134,7 @@ def test_create__variant_length_max():
     vcz1 = make_vcz([0], [100], [["A", "T"]], variant_length=[5])
     vcz2 = make_vcz([0], [100], [["A", "T"]], variant_length=[3])
     vcz_out = zarr.storage.MemoryStore()
-    create(vcz1, vcz2, vcz_out)
+    create(vcz_out, vcz1, vcz2)
     root = zarr.open(vcz_out)
     assert_array_equal(root["variant_length"][:], [5])
 
@@ -144,7 +144,7 @@ def test_create__variant_length_passthrough():
     vcz1 = make_vcz([0], [100], [["A", "T"]], variant_length=[4])
     vcz2 = make_vcz([0], [200], [["C", "G"]], variant_length=[7])
     vcz_out = zarr.storage.MemoryStore()
-    create(vcz1, vcz2, vcz_out)
+    create(vcz_out, vcz1, vcz2)
     root = zarr.open(vcz_out)
     assert_array_equal(root["variant_length"][:], [4, 7])
 
@@ -154,7 +154,7 @@ def test_create__variant_length_absent():
     vcz1 = make_vcz([0], [100], [["A", "T"]])
     vcz2 = make_vcz([0], [100], [["A", "T"]])
     vcz_out = zarr.storage.MemoryStore()
-    create(vcz1, vcz2, vcz_out)
+    create(vcz_out, vcz1, vcz2)
     root = zarr.open(vcz_out)
     assert "variant_length" not in root
 
@@ -178,7 +178,7 @@ def test_create__variant_id_joined():
     vcz1 = make_vcz([0], [100], [["A", "T"]], variant_id=["rs1"])
     vcz2 = make_vcz([0], [100], [["A", "T"]], variant_id=["rs2"])
     vcz_out = zarr.storage.MemoryStore()
-    create(vcz1, vcz2, vcz_out)
+    create(vcz_out, vcz1, vcz2)
     root = zarr.open(vcz_out)
     assert root["variant_id"][0] == "rs1;rs2"
     assert root["variant_id_mask"][0] == False  # noqa: E712
@@ -189,7 +189,7 @@ def test_create__variant_id_missing_dropped():
     vcz1 = make_vcz([0], [100], [["A", "T"]], variant_id=["rs1"])
     vcz2 = make_vcz([0], [100], [["A", "T"]], variant_id=["."])
     vcz_out = zarr.storage.MemoryStore()
-    create(vcz1, vcz2, vcz_out)
+    create(vcz_out, vcz1, vcz2)
     root = zarr.open(vcz_out)
     assert root["variant_id"][0] == "rs1"
     assert root["variant_id_mask"][0] == False  # noqa: E712
@@ -200,7 +200,7 @@ def test_create__variant_id_passthrough():
     vcz1 = make_vcz([0], [100], [["A", "T"]], variant_id=["rs1"])
     vcz2 = make_vcz([0], [200], [["C", "G"]], variant_id=["rs2"])
     vcz_out = zarr.storage.MemoryStore()
-    create(vcz1, vcz2, vcz_out)
+    create(vcz_out, vcz1, vcz2)
     root = zarr.open(vcz_out)
     assert_array_equal(root["variant_id"][:], ["rs1", "rs2"])
     assert_array_equal(root["variant_id_mask"][:], [False, False])
@@ -211,7 +211,7 @@ def test_create__variant_id_absent():
     vcz1 = make_vcz([0], [100], [["A", "T"]])
     vcz2 = make_vcz([0], [100], [["A", "T"]])
     vcz_out = zarr.storage.MemoryStore()
-    create(vcz1, vcz2, vcz_out)
+    create(vcz_out, vcz1, vcz2)
     root = zarr.open(vcz_out)
     assert "variant_id" not in root
     assert "variant_id_mask" not in root
@@ -229,7 +229,7 @@ def test_create__variant_quality_max():
         [0, 0], [100, 200], [["A", "T"], ["G", "C"]], variant_quality=[5.0, 8.0]
     )
     vcz_out = zarr.storage.MemoryStore()
-    create(vcz1, vcz2, vcz_out)
+    create(vcz_out, vcz1, vcz2)
     root = zarr.open(vcz_out)
     assert root["variant_quality"][0] == pytest.approx(10.0)
     assert root["variant_quality"][1] == pytest.approx(8.0)
@@ -240,7 +240,7 @@ def test_create__variant_quality_passthrough():
     vcz1 = make_vcz([0], [100], [["A", "T"]], variant_quality=[30.0])
     vcz2 = make_vcz([0], [200], [["C", "G"]], variant_quality=[20.0])
     vcz_out = zarr.storage.MemoryStore()
-    create(vcz1, vcz2, vcz_out)
+    create(vcz_out, vcz1, vcz2)
     root = zarr.open(vcz_out)
     np.testing.assert_allclose(root["variant_quality"][:], [30.0, 20.0])
 
@@ -249,7 +249,7 @@ def test_create__variant_quality_absent():
     vcz1 = make_vcz([0], [100], [["A", "T"]])
     vcz2 = make_vcz([0], [100], [["A", "T"]])
     vcz_out = zarr.storage.MemoryStore()
-    create(vcz1, vcz2, vcz_out)
+    create(vcz_out, vcz1, vcz2)
     root = zarr.open(vcz_out)
     assert "variant_quality" not in root
 
@@ -273,7 +273,7 @@ def test_create__variant_filter_union():
         filter_id=filt_id,
     )
     vcz_out = zarr.storage.MemoryStore()
-    create(vcz1, vcz2, vcz_out)
+    create(vcz_out, vcz1, vcz2)
     root = zarr.open(vcz_out)
     assert_array_equal(root["variant_filter"][0], [True, True])
     assert_array_equal(root["filter_id"][:], filt_id)
@@ -297,7 +297,7 @@ def test_create__variant_filter_passthrough():
         filter_id=filt_id,
     )
     vcz_out = zarr.storage.MemoryStore()
-    create(vcz1, vcz2, vcz_out)
+    create(vcz_out, vcz1, vcz2)
     root = zarr.open(vcz_out)
     assert_array_equal(root["variant_filter"][:], [[True, False], [False, True]])
 
@@ -306,7 +306,7 @@ def test_create__variant_filter_absent():
     vcz1 = make_vcz([0], [100], [["A", "T"]])
     vcz2 = make_vcz([0], [100], [["A", "T"]])
     vcz_out = zarr.storage.MemoryStore()
-    create(vcz1, vcz2, vcz_out)
+    create(vcz_out, vcz1, vcz2)
     root = zarr.open(vcz_out)
     assert "variant_filter" not in root
     assert "filter_id" not in root
@@ -329,7 +329,7 @@ def test_create__different_filter_ids_raises():
     )
     vcz_out = zarr.storage.MemoryStore()
     with pytest.raises(ValueError, match="filter_id"):
-        create(vcz1, vcz2, vcz_out)
+        create(vcz_out, vcz1, vcz2)
 
 
 def test_create__different_contig_ids_raises():
@@ -343,4 +343,4 @@ def test_create__different_contig_ids_raises():
     root.create_array(name="variant_allele", data=np.array([["A", "T"]]))
     vcz_out = zarr.storage.MemoryStore()
     with pytest.raises(ValueError, match="contig_id"):
-        create(vcz1, vcz2, vcz_out)
+        create(vcz_out, vcz1, vcz2)
