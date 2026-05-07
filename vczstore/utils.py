@@ -1,6 +1,6 @@
 import os
 from collections.abc import Callable
-from contextlib import contextmanager
+from contextlib import contextmanager, nullcontext
 from typing import Any
 
 import tqdm
@@ -111,25 +111,52 @@ def copy_store(source, dest, *, array_keys=None, io_concurrency=None):
 
 def copy_store_to_icechunk(source, dest, *, io_concurrency=None):
     """Copy a Zarr store to a new Icechunk store."""
-    from icechunk import Repository
-
-    icechunk_storage = make_icechunk_storage(dest)
-    repo = Repository.create(icechunk_storage)
-
-    with repo.transaction("main", message="create") as dest:
+    with icechunk_transaction(dest, "main", create_repo=True, message="create") as dest:
         copy_store(source, dest, io_concurrency=io_concurrency)
 
 
 @contextmanager
-def icechunk_transaction(file_or_url, branch, *, message="update"):
-    """Open an Icechunk store in a transaction, then amend last commit on completion."""
+def transaction(
+    file_or_url,
+    *,
+    backend_storage=None,
+    branch="main",
+    create_repo=False,
+    message="update",
+):
+    """Create a transaction context manager.
+
+    If `backend_storage` is `"icechunk"` the context manager will be an Icechunk
+    context manager, otherwise it will be a null context manager that does nothing.
+    """
+    if backend_storage == "icechunk":
+        cm = icechunk_transaction(
+            file_or_url, branch, create_repo=create_repo, message=message
+        )
+    else:
+        cm = nullcontext(file_or_url)
+    with cm as store:
+        yield store
+
+
+@contextmanager
+def icechunk_transaction(file_or_url, branch, *, create_repo=False, message="update"):
+    """Open an Icechunk store in a transaction, then commit on completion.
+
+    If `create_repo` is False then the previous commit will be amended so the
+    Icechunk repositoy doesn't retain history.
+    """
     from icechunk import Repository
 
     icechunk_storage = make_icechunk_storage(file_or_url)
-    repo = Repository.open(icechunk_storage)
-
-    with transaction_amend(repo, branch, message=message) as store:
-        yield store
+    if create_repo:
+        repo = Repository.create(icechunk_storage)
+        with repo.transaction(branch, message=message) as store:
+            yield store
+    else:
+        repo = Repository.open(icechunk_storage)
+        with transaction_amend(repo, branch, message=message) as store:
+            yield store
 
 
 @contextmanager

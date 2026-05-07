@@ -1,7 +1,10 @@
+import pathlib
+
 import numpy as np
 import pytest
 import zarr
 from numpy.testing import assert_array_equal
+from vcztools.utils import open_zarr
 
 from vczstore.create import _can_merge_variants, _merge_alts, _merge_ids, create
 
@@ -344,3 +347,18 @@ def test_create__different_contig_ids_raises():
     vcz_out = zarr.storage.MemoryStore()
     with pytest.raises(ValueError, match="contig_id"):
         create(vcz_out, vcz1, vcz2)
+
+
+def test_create__icechunk(tmp_path):
+    vcz1 = make_vcz([0], [100], [["A", "T"]])
+    vcz2 = make_vcz([0], [100], [["A", "T"]])
+
+    ic_tmp_path = tmp_path / "icechunk"
+    ic_tmp_path.mkdir()
+    vcz_out = pathlib.Path(ic_tmp_path) / "store.vcz"
+
+    create(vcz_out, vcz1, vcz2, backend_storage="icechunk")
+
+    root = open_zarr(vcz_out, backend_storage="icechunk")
+    assert_array_equal(root["variant_position"][:], [100])
+    assert_array_equal(root["variant_allele"][:, :2], [["A", "T"]])

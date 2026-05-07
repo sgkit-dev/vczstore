@@ -13,7 +13,7 @@ from bio2zarr.zarr_utils import (
 from vcztools.constants import STR_FILL, STR_MISSING
 from vcztools.utils import array_dims, open_zarr
 
-from vczstore.utils import copy_store, merge_with, progress_bar
+from vczstore.utils import copy_store, merge_with, progress_bar, transaction
 
 logger = logging.getLogger(__name__)
 
@@ -546,162 +546,170 @@ def create(vcz_out, *vczs, show_progress=False, backend_storage=None) -> None:
 
     vcz1, vcz2 = vczs
 
-    root1 = open_zarr(vcz1, mode="r", backend_storage=backend_storage)
-    root2 = zarr.open(vcz2, mode="r")
+    with transaction(
+        vcz_out, backend_storage=backend_storage, message="create", create_repo=True
+    ) as vcz_out:
+        root1 = zarr.open(vcz1, mode="r")
+        root2 = zarr.open(vcz2, mode="r")
 
-    if not np.all(root1["contig_id"][:] == root2["contig_id"][:]):
-        raise ValueError("contig_id fields must be identical")
+        if not np.all(root1["contig_id"][:] == root2["contig_id"][:]):
+            raise ValueError("contig_id fields must be identical")
 
-    (
-        out_contig,
-        out_position,
-        out_length,
-        out_id,
-        out_quality,
-        out_filter,
-        out_allele,
-    ) = _compute_merged_variants(root1, root2, show_progress=show_progress)
+        (
+            out_contig,
+            out_position,
+            out_length,
+            out_id,
+            out_quality,
+            out_filter,
+            out_allele,
+        ) = _compute_merged_variants(root1, root2, show_progress=show_progress)
 
-    n_variants = out_contig.shape[0]
-    variants_chunk_size = root1["variant_contig"].chunks[0]
+        n_variants = out_contig.shape[0]
+        variants_chunk_size = root1["variant_contig"].chunks[0]
 
-    out_root = zarr.open(vcz_out, mode="w", zarr_format=root1.metadata.zarr_format)
-    out_root.attrs.update(root1.attrs)
+        out_root = open_zarr(
+            vcz_out,
+            mode="w",
+            backend_storage=backend_storage,
+            zarr_format=root1.metadata.zarr_format,
+        )
+        out_root.attrs.update(root1.attrs)
 
-    # copy direct from vcz1
-    vcz1_copy_vars = [
-        var
-        for var in root1.keys()
-        if var.startswith("contig_") or var.startswith("filter_")
-    ]
-    logger.debug(f"Copying arrays for {', '.join(vcz1_copy_vars)}")
-    copy_store(vcz1, vcz_out, array_keys=vcz1_copy_vars)
+        # copy direct from vcz1
+        vcz1_copy_vars = [
+            var
+            for var in root1.keys()
+            if var.startswith("contig_") or var.startswith("filter_")
+        ]
+        logger.debug(f"Copying arrays for {', '.join(vcz1_copy_vars)}")
+        copy_store(vcz1, vcz_out, array_keys=vcz1_copy_vars)
 
-    logger.debug("Creating variant arrays")
-    arr = root1["variant_contig"]
-    create_group_array(
-        out_root,
-        "variant_contig",
-        data=out_contig,
-        shape=out_contig.shape,
-        dtype=arr.dtype,
-        chunks=(variants_chunk_size,),
-        compressor=get_compressor_config(arr),
-        dimension_names=["variants"],
-    )
-    arr = root1["variant_position"]
-    create_group_array(
-        out_root,
-        "variant_position",
-        data=out_position,
-        shape=out_position.shape,
-        dtype=arr.dtype,
-        chunks=(variants_chunk_size,),
-        compressor=get_compressor_config(arr),
-        dimension_names=["variants"],
-    )
-    if out_length is not None:
-        arr = root1["variant_length"]
+        logger.debug("Creating variant arrays")
+        arr = root1["variant_contig"]
         create_group_array(
             out_root,
-            "variant_length",
-            data=out_length,
-            shape=out_length.shape,
+            "variant_contig",
+            data=out_contig,
+            shape=out_contig.shape,
             dtype=arr.dtype,
             chunks=(variants_chunk_size,),
             compressor=get_compressor_config(arr),
             dimension_names=["variants"],
         )
-
-    if out_id is not None:
-        arr = root1["variant_id"]
+        arr = root1["variant_position"]
         create_group_array(
             out_root,
-            "variant_id",
-            data=out_id,
-            shape=out_id.shape,
+            "variant_position",
+            data=out_position,
+            shape=out_position.shape,
+            dtype=arr.dtype,
+            chunks=(variants_chunk_size,),
+            compressor=get_compressor_config(arr),
+            dimension_names=["variants"],
+        )
+        if out_length is not None:
+            arr = root1["variant_length"]
+            create_group_array(
+                out_root,
+                "variant_length",
+                data=out_length,
+                shape=out_length.shape,
+                dtype=arr.dtype,
+                chunks=(variants_chunk_size,),
+                compressor=get_compressor_config(arr),
+                dimension_names=["variants"],
+            )
+
+        if out_id is not None:
+            arr = root1["variant_id"]
+            create_group_array(
+                out_root,
+                "variant_id",
+                data=out_id,
+                shape=out_id.shape,
+                dtype=STRING_DTYPE_NAME,
+                chunks=(variants_chunk_size,),
+                compressor=get_compressor_config(arr),
+                dimension_names=["variants"],
+            )
+            arr = root1["variant_id_mask"]
+            create_group_array(
+                out_root,
+                "variant_id_mask",
+                data=out_id == ".",
+                shape=out_id.shape,
+                dtype=arr.dtype,
+                chunks=(variants_chunk_size,),
+                compressor=get_compressor_config(arr),
+                dimension_names=["variants"],
+            )
+        if out_quality is not None:
+            arr = root1["variant_quality"]
+            create_group_array(
+                out_root,
+                "variant_quality",
+                data=out_quality,
+                shape=out_quality.shape,
+                dtype=arr.dtype,
+                chunks=(variants_chunk_size,),
+                compressor=get_compressor_config(arr),
+                dimension_names=["variants"],
+            )
+        if out_filter is not None:
+            arr = root1["variant_filter"]
+            create_group_array(
+                out_root,
+                "variant_filter",
+                data=out_filter,
+                shape=out_filter.shape,
+                dtype=arr.dtype,
+                chunks=(variants_chunk_size,) + arr.chunks[1:],
+                compressor=get_compressor_config(arr),
+                dimension_names=["variants", "filters"],
+            )
+
+        arr = root1["variant_allele"]
+        create_group_array(
+            out_root,
+            "variant_allele",
+            data=out_allele,
+            shape=out_allele.shape,
             dtype=STRING_DTYPE_NAME,
-            chunks=(variants_chunk_size,),
-            compressor=get_compressor_config(arr),
-            dimension_names=["variants"],
-        )
-        arr = root1["variant_id_mask"]
-        create_group_array(
-            out_root,
-            "variant_id_mask",
-            data=out_id == ".",
-            shape=out_id.shape,
-            dtype=arr.dtype,
-            chunks=(variants_chunk_size,),
-            compressor=get_compressor_config(arr),
-            dimension_names=["variants"],
-        )
-    if out_quality is not None:
-        arr = root1["variant_quality"]
-        create_group_array(
-            out_root,
-            "variant_quality",
-            data=out_quality,
-            shape=out_quality.shape,
-            dtype=arr.dtype,
-            chunks=(variants_chunk_size,),
-            compressor=get_compressor_config(arr),
-            dimension_names=["variants"],
-        )
-    if out_filter is not None:
-        arr = root1["variant_filter"]
-        create_group_array(
-            out_root,
-            "variant_filter",
-            data=out_filter,
-            shape=out_filter.shape,
-            dtype=arr.dtype,
             chunks=(variants_chunk_size,) + arr.chunks[1:],
             compressor=get_compressor_config(arr),
-            dimension_names=["variants", "filters"],
+            dimension_names=["variants", "alleles"],
         )
 
-    arr = root1["variant_allele"]
-    create_group_array(
-        out_root,
-        "variant_allele",
-        data=out_allele,
-        shape=out_allele.shape,
-        dtype=STRING_DTYPE_NAME,
-        chunks=(variants_chunk_size,) + arr.chunks[1:],
-        compressor=get_compressor_config(arr),
-        dimension_names=["variants", "alleles"],
-    )
+        logger.debug("Creating empty sample and call arrays")
+        for var in root1.keys():
+            if var.startswith("call_"):
+                arr = root1[var]
+                shape = (n_variants, 0) + arr.shape[2:]
+                chunks = (variants_chunk_size,) + arr.chunks[1:]
+                create_empty_group_array(
+                    out_root,
+                    var,
+                    shape=shape,
+                    dtype=arr.dtype,
+                    chunks=chunks,
+                    compressor=get_compressor_config(arr),
+                    dimension_names=array_dims(arr),
+                )
+            elif var == "sample_id":
+                arr = root1[var]
+                shape = (0,)
+                chunks = arr.chunks
+                create_empty_group_array(
+                    out_root,
+                    var,
+                    shape=arr.shape,
+                    dtype=arr.dtype,
+                    chunks=arr.chunks,
+                    compressor=get_compressor_config(arr),
+                    dimension_names=array_dims(arr),
+                )
 
-    logger.debug("Creating empty sample and call arrays")
-    for var in root1.keys():
-        if var.startswith("call_"):
-            arr = root1[var]
-            shape = (n_variants, 0) + arr.shape[2:]
-            chunks = (variants_chunk_size,) + arr.chunks[1:]
-            create_empty_group_array(
-                out_root,
-                var,
-                shape=shape,
-                dtype=arr.dtype,
-                chunks=chunks,
-                compressor=get_compressor_config(arr),
-                dimension_names=array_dims(arr),
-            )
-        elif var == "sample_id":
-            arr = root1[var]
-            shape = (0,)
-            chunks = arr.chunks
-            create_empty_group_array(
-                out_root,
-                var,
-                shape=arr.shape,
-                dtype=arr.dtype,
-                chunks=arr.chunks,
-                compressor=get_compressor_config(arr),
-                dimension_names=array_dims(arr),
-            )
-
-    if out_length is not None:
-        indexer = VcfZarrIndexer(vcz_out)
-        indexer.create_index()
+        if out_length is not None:
+            indexer = VcfZarrIndexer(vcz_out)
+            indexer.create_index()
