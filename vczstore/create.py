@@ -521,9 +521,12 @@ def _compute_merged_variants(
     )
 
 
-def create(vcz1, vcz2, vcz_out, *, show_progress=False, backend_storage=None) -> None:
-    """Create a new, empty store vcz_out using merged variants from vcz1 and vcz2
+def create(vcz_out, *vczs, show_progress=False, backend_storage=None) -> None:
+    """Create a new, empty store vcz_out using merged variants from vczs
     using -m none semantics with stable variant ordering.
+
+    Currently vczs must contain exactly two stores. This requirement may be lifted
+    in the future.
 
     Both stores must have identical contig_id arrays. Output contains all variants
     from both stores; variants at the same position whose alt sets overlap are merged
@@ -537,6 +540,12 @@ def create(vcz1, vcz2, vcz_out, *, show_progress=False, backend_storage=None) ->
     variant_quality, variant_filter) are included only when both input stores contain
     them.
     """
+
+    if len(vczs) != 2:
+        raise NotImplementedError("A store can only be created from two VCZ files.")
+
+    vcz1, vcz2 = vczs
+
     root1 = open_zarr(vcz1, mode="r", backend_storage=backend_storage)
     root2 = zarr.open(vcz2, mode="r")
 
