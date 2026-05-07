@@ -1,6 +1,6 @@
 import logging
 import os
-from contextlib import nullcontext, suppress
+from contextlib import suppress
 from itertools import product
 
 import numpy as np
@@ -9,7 +9,7 @@ from aiostream import stream
 from vcztools.utils import array_dims, open_zarr
 from zarr.core.sync import sync
 
-from vczstore.utils import copy_store
+from vczstore.utils import copy_store, transaction
 
 logger = logging.getLogger(__name__)
 
@@ -118,14 +118,7 @@ def append(
     if io_concurrency < 1:
         raise ValueError("io_concurrency must be greater than or equal to 1")
 
-    if backend_storage == "icechunk":
-        from vczstore.utils import icechunk_transaction
-
-        cm = icechunk_transaction(vcz1, "main", message="append")
-    else:
-        cm = nullcontext(vcz1)
-
-    with cm as vcz1:
+    with transaction(vcz1, backend_storage=backend_storage, message="append") as vcz1:
         root1 = open_zarr(vcz1, mode="r+", backend_storage=backend_storage)
         root2 = zarr.open(vcz2, mode="r")  # assume local
 

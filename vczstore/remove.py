@@ -1,10 +1,9 @@
 import logging
-from contextlib import nullcontext
 
 import numpy as np
 from vcztools.utils import array_dims, open_zarr, search
 
-from vczstore.utils import missing_val, progress_bar, variant_chunk_slices
+from vczstore.utils import missing_val, progress_bar, transaction, variant_chunk_slices
 
 logger = logging.getLogger(__name__)
 
@@ -43,13 +42,7 @@ def remove(
     if variant_chunks_in_batch < 1:
         raise ValueError("variant_chunks_in_batch must be greater than or equal to 1")
 
-    if backend_storage == "icechunk":
-        from vczstore.utils import icechunk_transaction
-
-        cm = icechunk_transaction(vcz, "main", message="remove")
-    else:
-        cm = nullcontext(vcz)
-    with cm as vcz:
+    with transaction(vcz, backend_storage=backend_storage, message="remove") as vcz:
         root = open_zarr(vcz, mode="r+", backend_storage=backend_storage)
         n_variants = root["variant_contig"].shape[0]
         all_samples = root["sample_id"][:]
