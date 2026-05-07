@@ -12,7 +12,7 @@ import numpy as np
 import vcztools.cli as cli
 import zarr
 from bio2zarr import vcf
-from vcztools.utils import array_dims
+from vcztools.utils import array_dims, open_zarr
 
 from vczstore.utils import missing_val
 
@@ -233,6 +233,7 @@ def convert_vcf_to_vcz(
     samples_chunk_size=None,
     ploidy=None,
     zarr_format=None,
+    backend_storage=None,
 ):
     vcf_path = pathlib.Path("tests/data/vcf") / vcf_name
     output = (pathlib.Path(tmpdir) / vcf_path.name).with_suffix(".vcz")
@@ -246,7 +247,16 @@ def convert_vcf_to_vcz(
         ploidy=ploidy,
         zarr_format=zarr_format,
     )
-    return output
+    if backend_storage == "icechunk":
+        from vczstore.utils import copy_store_to_icechunk
+
+        ic_tmp_path = pathlib.Path(tmpdir) / "icechunk"
+        ic_tmp_path.mkdir()
+        ic_output = (pathlib.Path(ic_tmp_path) / vcf_name).with_suffix(".vcz")
+        copy_store_to_icechunk(output, ic_output)
+        return ic_output
+    else:
+        return output
 
 
 def run_bcftools(args: str, expect_error=False) -> tuple[str, str]:
@@ -295,31 +305,8 @@ def compare_vcf_and_vcz(tmp_path, vcf_args, vcf_file, vcz_args, vcz):
     assert_vcfs_close(bcftools_out_file, vcztools_out_file)
 
 
-def convert_vcf_to_vcz_icechunk(
-    vcf_name, tmp_path, variants_chunk_size=None, samples_chunk_size=None, ploidy=None
-):
-    from vczstore.utils import copy_store_to_icechunk
-
-    vcz = convert_vcf_to_vcz(
-        vcf_name,
-        tmp_path,
-        variants_chunk_size=variants_chunk_size,
-        samples_chunk_size=samples_chunk_size,
-        ploidy=ploidy,
-        zarr_format=3,
-    )
-
-    ic_tmp_path = tmp_path / "icechunk"
-    ic_tmp_path.mkdir()
-    output = (pathlib.Path(ic_tmp_path) / vcf_name).with_suffix(".vcz")
-
-    copy_store_to_icechunk(vcz, output)
-
-    return output
-
-
-def check_removed_sample(vcz, sample_id):
-    root = zarr.open(vcz)
+def check_removed_sample(vcz, sample_id, backend_storage=None):
+    root = open_zarr(vcz, backend_storage=backend_storage)
     all_samples = root["sample_id"][:]
 
     # check removed sample is not present in sample_id array

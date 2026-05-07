@@ -5,14 +5,7 @@ from numpy.testing import assert_array_equal
 
 from vczstore.remove import remove
 
-from .utils import (
-    check_removed_sample,
-    compare_vcf_and_vcz,
-    convert_vcf_to_vcz,
-    convert_vcf_to_vcz_icechunk,
-    make_vcz,
-    run_vcztools,
-)
+from .utils import make_vcz
 
 
 def test_remove():
@@ -59,108 +52,6 @@ def test_remove():
             [[1, 1], [-1, -1], [0, 2]],
         ],
     )
-
-
-@pytest.mark.parametrize("backend_storage", [None, "obstore"])
-def test_remove_compare_vcf(tmp_path, backend_storage):
-    vcz = convert_vcf_to_vcz("sample.vcf.gz", tmp_path)
-
-    # check samples query
-    vcztools_out, _ = run_vcztools(f"query -l {vcz}")
-    assert vcztools_out.strip() == "NA00001\nNA00002\nNA00003"
-
-    remove(vcz, "NA00002", backend_storage=backend_storage)
-
-    # check samples query
-    vcztools_out, _ = run_vcztools(f"query -l {vcz}")
-    assert vcztools_out.strip() == "NA00001\nNA00003"
-
-    # check equivalence with original VCF (with sample subsetting)
-    compare_vcf_and_vcz(
-        tmp_path,
-        "view --no-version -s NA00001,NA00003 --no-update",
-        "sample.vcf.gz",
-        "view --no-version",
-        vcz,
-    )
-
-    # check sample values are missing
-    check_removed_sample(vcz, "NA00002")
-
-
-def test_remove_multiple_chunks(tmp_path):
-    vcz = convert_vcf_to_vcz("chr22.vcf.gz", tmp_path, variants_chunk_size=10)
-
-    # check samples query
-    vcztools_out, _ = run_vcztools(f"query -l {vcz}")
-    assert len(vcztools_out.strip().split("\n")) == 100
-
-    remove(vcz, "HG00100")
-
-    # check samples query
-    vcztools_out, _ = run_vcztools(f"query -l {vcz}")
-    assert "HG00100" not in vcztools_out
-    assert len(vcztools_out.strip().split("\n")) == 99
-
-    # check equivalence with original VCF (with sample subsetting)
-    reduced_samples = ",".join(vcztools_out.strip().split("\n"))
-    compare_vcf_and_vcz(
-        tmp_path,
-        f"view --no-version -s {reduced_samples} --no-update",
-        "chr22.vcf.gz",
-        "view --no-version",
-        vcz,
-    )
-
-    # check sample values are missing
-    check_removed_sample(vcz, "HG00100")
-
-
-def test_remove_icechunk(tmp_path):
-    pytest.importorskip("icechunk")
-    from icechunk import Repository
-
-    from vczstore.utils import make_icechunk_storage
-
-    vcz = convert_vcf_to_vcz_icechunk("sample.vcf.gz", tmp_path)
-
-    # check samples query
-    vcztools_out, _ = run_vcztools(f"query -l {vcz} --backend-storage icechunk")
-    assert vcztools_out.strip() == "NA00001\nNA00002\nNA00003"
-
-    icechunk_storage = make_icechunk_storage(vcz)
-    repo = Repository.open(icechunk_storage)
-
-    snapshots = [snapshot for snapshot in repo.ancestry(branch="main")]
-    assert len(snapshots) == 2
-    assert snapshots[0].message == "create"
-    assert snapshots[1].message == "Repository initialized"
-
-    remove(vcz, "NA00002", backend_storage="icechunk")
-
-    snapshots = [snapshot for snapshot in repo.ancestry(branch="main")]
-    assert len(snapshots) == 2
-    # note that 'create' has been deleted
-    assert snapshots[0].message == "remove"
-    assert snapshots[1].message == "Repository initialized"
-
-    # check samples query
-    vcztools_out, _ = run_vcztools(f"query -l {vcz} --backend-storage icechunk")
-    assert vcztools_out.strip() == "NA00001\nNA00003"
-
-    # check equivalence with original VCF (with sample subsetting)
-    compare_vcf_and_vcz(
-        tmp_path,
-        "view --no-version -s NA00001,NA00003 --no-update",
-        "sample.vcf.gz",
-        "view --no-version --backend-storage icechunk",
-        vcz,
-    )
-
-    # check sample values are missing
-    session = repo.readonly_session("main")
-    store = session.store
-    check_removed_sample(store, "NA00002")
 
 
 def test_remove_fails_for_misaligned_variant_chunks():
