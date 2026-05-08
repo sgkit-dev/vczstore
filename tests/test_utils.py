@@ -122,6 +122,18 @@ def test_split_metadata_and_data_keys_puts_metadata_before_chunks():
     assert data_keys == ["sample/c/1", "sample/c/0"]
 
 
+def test_copy_store_async_no_chunks():
+    keys = ["sample/zarr.json", "zarr.json"]
+    data = {key: key.encode() for key in keys}
+    metadata_keys, _ = split_metadata_and_data_keys(keys)
+    source = FakeSourceStore(data)
+    dest = FakeDestStore(metadata_keys)
+
+    asyncio.run(copy_store_async(source, dest, io_concurrency=2))
+
+    assert dest.values == data
+
+
 def test_copy_store_async_uses_bounded_concurrency_and_metadata_barrier():
     keys = ["sample/c/0", "sample/zarr.json", "zarr.json", "sample/c/1", "sample/c/2"]
     data = {key: key.encode() for key in keys}

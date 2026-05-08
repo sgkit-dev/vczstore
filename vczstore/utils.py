@@ -90,9 +90,10 @@ async def copy_store_async(source, dest, *, array_keys=None, io_concurrency):
     for key in metadata_keys:
         await _copy_one_key(key)
 
-    await stream.map(
-        stream.iterate(data_keys), _copy_one_key, task_limit=io_concurrency
-    )
+    if len(data_keys) > 0:
+        await stream.map(
+            stream.iterate(data_keys), _copy_one_key, task_limit=io_concurrency
+        )
 
 
 def copy_store(source, dest, *, array_keys=None, io_concurrency=None):
