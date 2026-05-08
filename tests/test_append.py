@@ -476,3 +476,19 @@ def test_require_direct_copy_fails_before_mutating_when_incoming_is_not_aligned(
     root = zarr.open_group(store=store1, mode="r")
     np.testing.assert_array_equal(root["sample_id"][:], np.array(["S1", "S2"]))
     assert root["call_genotype"].shape == (2, 2, 2)
+
+
+def test_append_fails_when_duplicate_sample_id():
+    store1 = _create_minimal_append_store(
+        ["S1", "S2"],
+        _make_genotype(2, 2),
+        samples_chunk_size=2,
+    )
+    store2 = _create_minimal_append_store(
+        ["S1", "S3"],
+        _make_genotype(2, 4),
+        samples_chunk_size=2,
+    )
+
+    with pytest.raises(ValueError, match=r"Duplicate samples found: \['S1'\]"):
+        append(store1, store2)

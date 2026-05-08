@@ -128,6 +128,12 @@ def append(
         )
 
         # check preconditions
+        sample_id1 = root1["sample_id"]
+        sample_id2 = root2["sample_id"]
+        common_samples = np.intersect1d(sample_id1, sample_id2)
+        if common_samples.shape[0] > 0:
+            raise ValueError(f"Duplicate samples found: {common_samples}")
+
         n_variants1 = root1["variant_contig"].shape[0]
         n_variants2 = root2["variant_contig"].shape[0]
         if n_variants1 != n_variants2:
@@ -168,9 +174,6 @@ def append(
         )
 
         # append samples
-        sample_id1 = root1["sample_id"]
-        sample_id2 = root2["sample_id"]
-
         old_num_samples = sample_id1.shape[0]
         incoming_num_samples = sample_id2.shape[0]
         new_num_samples = old_num_samples + incoming_num_samples
