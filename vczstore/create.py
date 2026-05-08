@@ -212,6 +212,9 @@ def _compute_merged_variants(
     keys2 = vc2.astype(np.int64) * pos_stride + vp2.astype(np.int64)
 
     # For each vcz1 variant: group sizes in vcz2 and within vcz1 at same position
+    logger.debug(
+        "For each vcz1 variant: group sizes in vcz2 and within vcz1 at same position"
+    )
     l2_for_1 = np.searchsorted(keys2, keys1, side="left")
     r2_for_1 = np.searchsorted(keys2, keys1, side="right")
     n2_at_1 = r2_for_1 - l2_for_1
@@ -221,6 +224,9 @@ def _compute_merged_variants(
     n1_at_1 = r1_self - l1_self
 
     # For each vcz2 variant: group sizes in vcz1 and within vcz2 at same position
+    logger.debug(
+        "For each vcz2 variant: group sizes in vcz1 and within vcz2 at same position"
+    )
     l1_for_2 = np.searchsorted(keys1, keys2, side="left")
     r1_for_2 = np.searchsorted(keys1, keys2, side="right")
     n1_at_2 = r1_for_2 - l1_for_2
@@ -230,19 +236,23 @@ def _compute_merged_variants(
     n2_at_2 = r2_self - l2_self
 
     # Classify vcz1 variants
+    logger.debug("Classify vcz1 variants")
     vcz1_only = n2_at_1 == 0  # no vcz2 at this position → pass through as-is
     vcz1_simple_shared = ~vcz1_only & (n1_at_1 == 1) & (n2_at_1 == 1)
     vcz1_complex_shared = ~vcz1_only & ~vcz1_simple_shared
 
     # Classify vcz2 variants
+    logger.debug("Classify vcz2 variants")
     vcz2_only = n1_at_2 == 0  # no vcz1 at this position → pass through as-is
     vcz2_complex_shared = ~vcz2_only & ((n1_at_2 > 1) | (n2_at_2 > 1))
 
     # --- Simple shared sites: 1 variant per position in each store ---
+    logger.debug("Simple shared sites")
     simple_i1 = np.where(vcz1_simple_shared)[0]
     simple_i2 = l2_for_1[vcz1_simple_shared]  # corresponding vcz2 index (exactly 1)
 
     # Exact allele match (handles different widths between stores)
+    logger.debug("Exact allele match")
     if len(simple_i1) > 0:
         min_w = min(va1.shape[1], va2.shape[1])
         common_equal = np.all(va1[simple_i1, :min_w] == va2[simple_i2, :min_w], axis=1)
@@ -262,6 +272,7 @@ def _compute_merged_variants(
     non_exact_i2 = simple_i2[~exact]
 
     # --- Complex shared sites: Python loop via merge_with ---
+    logger.debug("Complex shared sites")
     complex_keys_1 = keys1[vcz1_complex_shared]
     complex_keys_2 = keys2[vcz2_complex_shared]
     if len(complex_keys_1) + len(complex_keys_2) > 0:
@@ -272,6 +283,7 @@ def _compute_merged_variants(
     # Python fallback: each entry is
     # (sort_key, tiebreak, contig, position, alleles, length, id, quality, filter_arr)
     # tiebreak=0 for vcz1-origin, 1 for vcz2-origin; used to order within same position
+    logger.debug("Python fallback")
     python_output: list[
         tuple[int, int, int, int, list[str], int, str, float, np.ndarray | None]
     ] = []
@@ -409,6 +421,7 @@ def _compute_merged_variants(
     )
 
     # Sort keys and tiebreaks for all output records
+    logger.debug("Sort keys and tiebreaks for all output records")
     all_keys = np.empty(n_out, dtype=np.int64)
     all_keys[:n_v1] = keys1[vcz1_only_idx]
     all_keys[n_v1 : n_v1 + n_v2] = keys2[vcz2_only_idx]
@@ -424,6 +437,7 @@ def _compute_merged_variants(
     sort_order = np.lexsort([all_tb, all_keys])
 
     # Contig and position arrays
+    logger.debug("Contig and position arrays")
     all_contig = np.empty(n_out, dtype=vc1.dtype)
     all_contig[:n_v1] = vc1[vcz1_only_idx]
     all_contig[n_v1 : n_v1 + n_v2] = vc2[vcz2_only_idx]
@@ -439,6 +453,7 @@ def _compute_merged_variants(
         all_pos[n_v1 + n_v2 + n_ex :] = [r[3] for r in python_output]
 
     # Length array (only when both stores have variant_length)
+    logger.debug("Length array")
     if has_length:
         all_length: np.ndarray | None = np.empty(n_out, dtype=vl1.dtype)
         all_length[:n_v1] = vl1[vcz1_only_idx]
@@ -452,6 +467,7 @@ def _compute_merged_variants(
         all_length = None
 
     # ID array (only when both stores have variant_id)
+    logger.debug("ID array")
     if has_id:
         _str_dt = np.dtypes.StringDType()
         all_id: np.ndarray | None = np.empty(n_out, dtype=_str_dt)
@@ -466,6 +482,7 @@ def _compute_merged_variants(
         all_id = None
 
     # Quality array (only when both stores have variant_quality)
+    logger.debug("Quality array")
     if has_quality:
         all_quality: np.ndarray | None = np.empty(n_out, dtype=vq1.dtype)
         all_quality[:n_v1] = vq1[vcz1_only_idx]
@@ -479,6 +496,7 @@ def _compute_merged_variants(
         all_quality = None
 
     # Filter array (only when both stores have variant_filter with identical filter_id)
+    logger.debug("Filter array")
     if has_filter:
         n_filters = vf1.shape[1]
         all_filter: np.ndarray | None = np.zeros((n_out, n_filters), dtype=bool)
@@ -492,6 +510,7 @@ def _compute_merged_variants(
         all_filter = None
 
     # Allele array: width = max alleles across all sources
+    logger.debug("Allele array")
     max_alleles = max(
         va1.shape[1] if n1 > 0 else 1,
         va2.shape[1] if n2 > 0 else 1,
@@ -506,6 +525,7 @@ def _compute_merged_variants(
         for j, a in enumerate(rec[4]):
             all_allele[n_v1 + n_v2 + n_ex + k, j] = a
 
+    logger.debug("Return from _compute_merged_variants")
     out_length = all_length[sort_order] if all_length is not None else None
     out_id = all_id[sort_order] if all_id is not None else None
     out_quality = all_quality[sort_order] if all_quality is not None else None
