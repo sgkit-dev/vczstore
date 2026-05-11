@@ -3,28 +3,15 @@ import logging
 import numpy as np
 from vcztools.utils import array_dims, open_zarr, search
 
-from vczstore.utils import missing_val, progress_bar, transaction, variant_chunk_slices
+from vczstore.utils import (
+    compute_min_variants_chunk_size,
+    missing_val,
+    progress_bar,
+    transaction,
+    variant_chunk_slices,
+)
 
 logger = logging.getLogger(__name__)
-
-
-def _assert_variant_chunk_alignment(arrays, *, variant_chunk_size, operation):
-    for name, arr in arrays:
-        dims = array_dims(arr)
-        if (
-            dims is None
-            or len(dims) < 2
-            or dims[0] != "variants"
-            or dims[1] != "samples"
-        ):
-            raise ValueError(
-                f"{operation} requires {name!r} to use variants/samples dimensions"
-            )
-        if arr.chunks is None or arr.chunks[0] != variant_chunk_size:
-            raise ValueError(
-                f"{operation} requires {name!r} to use VCZ-aligned variant chunks of "
-                f"size {variant_chunk_size}"
-            )
 
 
 def remove(
@@ -47,21 +34,14 @@ def remove(
         n_variants = root["variant_contig"].shape[0]
         all_samples = root["sample_id"][:]
 
+        # check that all call_* fields have same variant chunk size
+        compute_min_variants_chunk_size(root)
+
         # find index of sample to remove
         unknown_samples = np.setdiff1d(sample_id, all_samples)
         if len(unknown_samples) > 0:
             raise ValueError(f"unrecognised sample: {sample_id}")
         sample_selection = search(all_samples, sample_id)
-
-        target_arrays = [
-            (name, arr) for name, arr in root.arrays() if name.startswith("call_")
-        ]
-
-        _assert_variant_chunk_alignment(
-            target_arrays,
-            variant_chunk_size=root["variant_contig"].chunks[0],
-            operation="remove",
-        )
 
         # overwrite sample data
         root["sample_id"][sample_selection] = ""

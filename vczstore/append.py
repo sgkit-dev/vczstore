@@ -9,21 +9,9 @@ from aiostream import stream
 from vcztools.utils import array_dims, open_zarr
 from zarr.core.sync import sync
 
-from vczstore.utils import copy_store, transaction
+from vczstore.utils import compute_min_variants_chunk_size, copy_store, transaction
 
 logger = logging.getLogger(__name__)
-
-
-def _assert_variant_chunk_alignment(arrays, *, variant_chunk_size, operation):
-    for name, arr in arrays:
-        dims = array_dims(arr)
-        if dims is None or len(dims) == 0 or dims[0] != "variants":
-            raise ValueError(f"{operation} requires {name!r} to be chunked on variants")
-        if arr.chunks is None or arr.chunks[0] != variant_chunk_size:
-            raise ValueError(
-                f"{operation} requires {name!r} to use VCZ-aligned variant chunks of "
-                f"size {variant_chunk_size}"
-            )
 
 
 def _assert_append_arrays_compatible(name, arr1, arr2):
@@ -150,6 +138,14 @@ def append(
                     f"Stores being appended must have same values for field '{field}'"
                 )
 
+        min_chunk_size1 = compute_min_variants_chunk_size(root1)
+        min_chunk_size2 = compute_min_variants_chunk_size(root2)
+        if min_chunk_size1 != min_chunk_size2:
+            raise ValueError(
+                f"append requires stores have matching minimum variants chunk sizes. "
+                f"First has {min_chunk_size1}, second has {min_chunk_size2}"
+            )
+
         call_arrays = []
         for var in root1.keys():
             if var.startswith("call_"):
@@ -162,16 +158,6 @@ def append(
                 arr1_num_sample_chunks = arr1.cdata_shape[1]
                 _assert_append_arrays_compatible(var, arr1, arr2)
                 call_arrays.append((var, arr1, arr2, arr1_num_sample_chunks))
-        _assert_variant_chunk_alignment(
-            [(var, arr1) for var, arr1, _, _ in call_arrays],
-            variant_chunk_size=root1["variant_contig"].chunks[0],
-            operation="append",
-        )
-        _assert_variant_chunk_alignment(
-            [(var, arr2) for var, _, arr2, _ in call_arrays],
-            variant_chunk_size=root2["variant_contig"].chunks[0],
-            operation="append",
-        )
 
         # append samples
         old_num_samples = sample_id1.shape[0]
