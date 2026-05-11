@@ -7,6 +7,7 @@ from vcztools.constants import INT_FILL, INT_MISSING, STR_FILL, STR_MISSING
 from vcztools.utils import array_dims, open_zarr, search
 
 from vczstore.utils import (
+    compute_min_variants_chunk_size,
     copy_store,
     missing_val,
     progress_bar,
@@ -57,8 +58,10 @@ def normalise(
     norm_root = zarr.open(vcz2_norm, mode="w", zarr_format=root2.metadata.zarr_format)
 
     n_variants = root1["variant_contig"].shape[0]
-    variants_chunk_size = root1["variant_contig"].chunks[0]
+    min_chunk_size = compute_min_variants_chunk_size(root1)
     norm_root.attrs.update(root2.attrs)
+
+    variant_contig1 = root1["variant_contig"]
 
     if haploid_contigs is None:
         haploid_contigs = ["X", "Y", "MT"]
@@ -89,7 +92,7 @@ def normalise(
                         f"variable {var}"
                     )
             shape = (n_variants,) + arr.shape[1:]
-            chunks = (variants_chunk_size,) + arr.chunks[1:]
+            chunks = (min_chunk_size,) + arr.chunks[1:]
             create_empty_group_array(
                 norm_root,
                 var,
@@ -137,17 +140,15 @@ def normalise(
 
     # find chunk boundaries
     chunk_bounds = np.arange(
-        0, n_variants, step=variants_chunk_size * variant_chunks_in_batch
+        0, n_variants, step=min_chunk_size * variant_chunks_in_batch
     )
     chunk_bounds = np.append(chunk_bounds, [n_variants])
 
     # find chunk offsets for indexes
     match_starts = np.searchsorted(match_idx, chunk_bounds)
     remap_starts = np.searchsorted(remap_idx, chunk_bounds)
-    update_starts = np.searchsorted(update_idx, chunk_bounds)
 
     allele_mappings_list = list(allele_mappings.values())
-    updated_allele_mappings_list = list(updated_allele_mappings.values())
 
     with progress_bar(n_variants, "Write", show_progress) as pbar:
         for i, v_sel in enumerate(variant_chunk_slices(root1, variant_chunks_in_batch)):
@@ -162,7 +163,7 @@ def normalise(
                 if var == "call_genotype":
                     data = np.full(shape, fill_value=INT_MISSING, dtype=arr.dtype)
                     if contig_ploidy is not None:
-                        variant_ploidy = contig_ploidy[root1["variant_contig"][v_sel]]
+                        variant_ploidy = contig_ploidy[variant_contig1[v_sel]]
                         for ploidy in range(1, data.shape[-1]):
                             ploidy_mask = variant_ploidy == ploidy
                             data[ploidy_mask, :, ploidy:] = INT_FILL
@@ -183,19 +184,13 @@ def normalise(
 
                 norm_root[var][v_sel] = data
 
-            # update variant_allele if needed
-            if len(update_idx) > 0:
-                var = "variant_allele"
-                data = root1[var][v_sel, :]
-                update_sl = slice(update_starts[i], update_starts[i + 1])
-                local_update_idx = update_idx[update_sl] - v_sel.start
-                chunk_maps = updated_allele_mappings_list[update_sl]
-                update_variant_alleles(data, local_update_idx, chunk_maps)
-                norm_root[var][v_sel] = data
-
             pbar.update(v_sel.stop - v_sel.start)
 
+    # update variant_allele if needed
     if len(update_idx) > 0:
+        data = root1["variant_allele"][:]
+        update_variant_alleles(data, update_idx, updated_allele_mappings.values())
+        norm_root["variant_allele"][:] = data
         norm_root["variant_allele"].attrs["normalise_new_alleles"] = True
 
 

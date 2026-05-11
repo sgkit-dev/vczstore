@@ -96,7 +96,7 @@ def test_append_fail_alleles_mismatch():
         append(vcz1, vcz2)
 
 
-def test_append_fails_for_misaligned_variant_chunks():
+def test_append_fails_for_misaligned_call_chunks():
     vcz1 = make_vcz(
         variant_contig=[0, 0],
         variant_position=[1, 2],
@@ -130,48 +130,7 @@ def test_append_fails_for_misaligned_variant_chunks():
         variants_chunk_size=2,
     )
 
-    with pytest.raises(ValueError, match="VCZ-aligned variant chunks"):
-        append(vcz1, vcz2)
-
-    root1_after = zarr.open_group(store=vcz1, mode="r")
-    np.testing.assert_array_equal(root1_after["sample_id"][:], np.array(["S1"]))
-
-
-def test_append_fails_for_misaligned_source_variant_chunks():
-    vcz1 = make_vcz(
-        variant_contig=[0, 0],
-        variant_position=[1, 2],
-        alleles=[
-            ["A", "T"],
-            ["C", "G"],
-        ],
-        sample_id=["S1"],
-        call_genotype=[[[0, 1]], [[1, 1]]],
-        variants_chunk_size=2,
-    )
-
-    vcz2 = make_vcz(
-        variant_contig=[0, 0],
-        variant_position=[1, 2],
-        alleles=[
-            ["A", "T"],
-            ["C", "G"],
-        ],
-        sample_id=["S2"],
-        variants_chunk_size=2,
-    )
-    # create call_genotype with different variant chunks
-    root2 = zarr.open(vcz2, mode="r+")
-    root2.create_array(
-        "call_genotype",
-        data=np.array([[[0, 0]], [[0, 1]]], dtype=np.int8),
-        chunks=(1, 1, 2),
-        dimension_names=["variants", "samples", "ploidy"],
-        compressors=None,
-        filters=None,
-    )
-
-    with pytest.raises(ValueError, match="VCZ-aligned variant chunks"):
+    with pytest.raises(ValueError, match="matching minimum variants chunk sizes"):
         append(vcz1, vcz2)
 
     root1_after = zarr.open_group(store=vcz1, mode="r")

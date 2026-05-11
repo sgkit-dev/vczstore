@@ -7,7 +7,7 @@ import tqdm
 from aiostream import stream
 from bio2zarr.vcf_utils import ceildiv
 from vcztools.constants import FLOAT32_MISSING, INT_MISSING, STR_MISSING
-from vcztools.utils import make_icechunk_storage
+from vcztools.utils import array_dims, make_icechunk_storage
 from zarr.core.buffer.core import default_buffer_prototype
 from zarr.core.sync import sync
 from zarr.storage._common import make_store
@@ -30,11 +30,56 @@ def missing_val(arr):
         raise ValueError(f"unrecognised dtype: {arr.dtype}")
 
 
+def has_variants_axis(arr) -> bool:
+    """Whether ``arr``'s first dimension is the variants axis."""
+    dims = array_dims(arr)
+    return dims is not None and len(dims) > 0 and dims[0] == "variants"
+
+
+def compute_min_variants_chunk_size(root) -> int:
+    """Compute the minimum variants-axis chunk size in a VCZ root.
+
+    By spec ``call_*`` fields define the floor; every variant-only
+    field must use a chunk size that is a positive integer multiple of
+    it. Two ``call_*`` fields with different chunk sizes are a writer
+    bug and raise ``ValueError`` here. When no ``call_*`` field is
+    present, falls back to the minimum chunk size across variant-axis
+    fields.
+    """
+    call_sizes: dict[str, int] = {}
+    other_sizes: list[int] = []
+    for name in root.array_keys():
+        arr = root[name]
+        if not has_variants_axis(arr):
+            continue
+        chunk_size = int(arr.chunks[0])
+        if name.startswith("call_"):
+            call_sizes[name] = chunk_size
+        else:
+            other_sizes.append(chunk_size)
+    if len(call_sizes) > 0:
+        sizes_set = set(call_sizes.values())
+        if len(sizes_set) > 1:
+            raise ValueError(
+                f"call_* fields must share a single variants chunk size; "
+                f"found {call_sizes}"
+            )
+        return next(iter(sizes_set))
+    if len(other_sizes) > 0:
+        return min(other_sizes)
+    raise ValueError("no variant-axis fields in store")
+
+
 def variant_chunk_slices(root, variant_chunks_in_batch=1):
-    """A generator returning chunk slices along the variants dimension."""
+    """A generator returning chunk slices along the variants dimension.
+
+    Batches are in multiples of the minimum variants-axis chunk size as
+    found by `compute_min_variants_chunk_size`.
+    """
     pos = root["variant_position"]
     size = pos.shape[0]
-    v_chunksize = pos.chunks[0] * variant_chunks_in_batch
+    min_chunk_size = compute_min_variants_chunk_size(root)
+    v_chunksize = min_chunk_size * variant_chunks_in_batch
     for v_chunk in range(ceildiv(size, v_chunksize)):
         start = v_chunksize * v_chunk
         end = min(v_chunksize * (v_chunk + 1), size)
