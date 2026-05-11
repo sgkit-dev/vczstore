@@ -566,7 +566,6 @@ def create(vcz_out, *vczs, show_progress=False, backend_storage=None) -> None:
         ) = _compute_merged_variants(root1, root2, show_progress=show_progress)
 
         n_variants = out_contig.shape[0]
-        variants_chunk_size = root1["variant_contig"].chunks[0]
 
         out_root = open_zarr(
             vcz_out,
@@ -593,7 +592,7 @@ def create(vcz_out, *vczs, show_progress=False, backend_storage=None) -> None:
             data=out_contig,
             shape=out_contig.shape,
             dtype=arr.dtype,
-            chunks=(variants_chunk_size,),
+            chunks=arr.chunks,
             compressor=get_compressor_config(arr),
             dimension_names=["variants"],
         )
@@ -604,7 +603,7 @@ def create(vcz_out, *vczs, show_progress=False, backend_storage=None) -> None:
             data=out_position,
             shape=out_position.shape,
             dtype=arr.dtype,
-            chunks=(variants_chunk_size,),
+            chunks=arr.chunks,
             compressor=get_compressor_config(arr),
             dimension_names=["variants"],
         )
@@ -616,7 +615,7 @@ def create(vcz_out, *vczs, show_progress=False, backend_storage=None) -> None:
                 data=out_length,
                 shape=out_length.shape,
                 dtype=arr.dtype,
-                chunks=(variants_chunk_size,),
+                chunks=arr.chunks,
                 compressor=get_compressor_config(arr),
                 dimension_names=["variants"],
             )
@@ -629,7 +628,7 @@ def create(vcz_out, *vczs, show_progress=False, backend_storage=None) -> None:
                 data=out_id,
                 shape=out_id.shape,
                 dtype=STRING_DTYPE_NAME,
-                chunks=(variants_chunk_size,),
+                chunks=arr.chunks,
                 compressor=get_compressor_config(arr),
                 dimension_names=["variants"],
             )
@@ -640,7 +639,7 @@ def create(vcz_out, *vczs, show_progress=False, backend_storage=None) -> None:
                 data=out_id == ".",
                 shape=out_id.shape,
                 dtype=arr.dtype,
-                chunks=(variants_chunk_size,),
+                chunks=arr.chunks,
                 compressor=get_compressor_config(arr),
                 dimension_names=["variants"],
             )
@@ -652,7 +651,7 @@ def create(vcz_out, *vczs, show_progress=False, backend_storage=None) -> None:
                 data=out_quality,
                 shape=out_quality.shape,
                 dtype=arr.dtype,
-                chunks=(variants_chunk_size,),
+                chunks=arr.chunks,
                 compressor=get_compressor_config(arr),
                 dimension_names=["variants"],
             )
@@ -664,7 +663,7 @@ def create(vcz_out, *vczs, show_progress=False, backend_storage=None) -> None:
                 data=out_filter,
                 shape=out_filter.shape,
                 dtype=arr.dtype,
-                chunks=(variants_chunk_size,) + arr.chunks[1:],
+                chunks=arr.chunks,
                 compressor=get_compressor_config(arr),
                 dimension_names=["variants", "filters"],
             )
@@ -676,7 +675,7 @@ def create(vcz_out, *vczs, show_progress=False, backend_storage=None) -> None:
             data=out_allele,
             shape=out_allele.shape,
             dtype=STRING_DTYPE_NAME,
-            chunks=(variants_chunk_size,) + arr.chunks[1:],
+            chunks=arr.chunks,
             compressor=get_compressor_config(arr),
             dimension_names=["variants", "alleles"],
         )
@@ -686,20 +685,18 @@ def create(vcz_out, *vczs, show_progress=False, backend_storage=None) -> None:
             if var.startswith("call_"):
                 arr = root1[var]
                 shape = (n_variants, 0) + arr.shape[2:]
-                chunks = (variants_chunk_size,) + arr.chunks[1:]
                 create_empty_group_array(
                     out_root,
                     var,
                     shape=shape,
                     dtype=arr.dtype,
-                    chunks=chunks,
+                    chunks=arr.chunks,
                     compressor=get_compressor_config(arr),
                     dimension_names=array_dims(arr),
                 )
             elif var == "sample_id":
                 arr = root1[var]
                 shape = (0,)
-                chunks = arr.chunks
                 create_empty_group_array(
                     out_root,
                     var,
