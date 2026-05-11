@@ -6,6 +6,7 @@ from vczstore.create import create as create_function
 from vczstore.normalise import normalise as normalise_function
 from vczstore.rechunk import rechunk as rechunk_function
 from vczstore.remove import remove as remove_function
+from vczstore.utils import parse_size
 
 
 class NaturalOrderGroup(click.Group):
@@ -155,18 +156,54 @@ def normalise(
 @click.command()
 @click.argument("vcz", type=click.Path())
 @click.argument("variants_array_name", type=str)
-@click.argument("variants_chunk_size", type=click.IntRange(min=1))
+@click.argument(
+    "variants_chunk_size", type=click.IntRange(min=1), required=False, default=None
+)
+@click.option(
+    "--target-uncompressed-size",
+    type=str,
+    default=None,
+    help=(
+        "Target uncompressed chunk size (e.g. '100MB'). "
+        "Alternative to VARIANTS_CHUNK_SIZE."
+    ),
+)
 @verbose
 @backend_storage
-def rechunk(vcz, variants_array_name, variants_chunk_size, verbose, backend_storage):
+def rechunk(
+    vcz,
+    variants_array_name,
+    variants_chunk_size,
+    target_uncompressed_size,
+    verbose,
+    backend_storage,
+):
     """Rechunk a variants array with a larger variants chunk size that is
     an exact multiple of the min variants chunk size"""
     setup_logging(verbose)
+    if variants_chunk_size is not None and target_uncompressed_size is not None:
+        raise click.UsageError(
+            "Cannot specify both VARIANTS_CHUNK_SIZE and --target-uncompressed-size"
+        )
+    if variants_chunk_size is None and target_uncompressed_size is None:
+        raise click.UsageError(
+            "Must specify either VARIANTS_CHUNK_SIZE or --target-uncompressed-size"
+        )
+    target_bytes = None
+    if target_uncompressed_size is not None:
+        try:
+            target_bytes = parse_size(target_uncompressed_size)
+        except ValueError as e:
+            raise click.BadParameter(
+                f"Cannot parse size: {target_uncompressed_size!r}",
+                param_hint="'--target-uncompressed-size'",
+            ) from e
     call_or_error(
         rechunk_function,
         vcz,
         variants_array_name,
         variants_chunk_size,
+        target_uncompressed_size_bytes=target_bytes,
         backend_storage=backend_storage,
     )
 

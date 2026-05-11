@@ -170,7 +170,6 @@ def test_invalid_zarr_backend_storage_is_rejected(command, command_args):
     [
         ["append", "only-one-store"],
         ["normalise", "left", "right"],
-        ["rechunk", "store", "variant_contig"],
         ["remove", "store"],
         ["copy-store-to-icechunk", "only-one-store"],
     ],
@@ -228,15 +227,22 @@ def test_remove_cli_updates_vcz_store(tmp_path):
     check_removed_sample(vcz, "NA00002")
 
 
+def fake_rechunk(
+    vcz,
+    variants_array_name,
+    variants_chunk_size=None,
+    *,
+    target_uncompressed_size_bytes=None,
+    backend_storage=None,
+):
+    fake_rechunk.seen = {
+        "args": (vcz, variants_array_name, variants_chunk_size),
+        "target_uncompressed_size_bytes": target_uncompressed_size_bytes,
+        "backend_storage": backend_storage,
+    }
+
+
 def test_rechunk_cli_passes_arguments(monkeypatch):
-    seen = {}
-
-    def fake_rechunk(
-        vcz, variants_array_name, variants_chunk_size, *, backend_storage=None
-    ):
-        seen["args"] = (vcz, variants_array_name, variants_chunk_size)
-        seen["backend_storage"] = backend_storage
-
     monkeypatch.setattr(cli, "rechunk_function", fake_rechunk)
 
     runner = ct.CliRunner()
@@ -247,10 +253,61 @@ def test_rechunk_cli_passes_arguments(monkeypatch):
     )
 
     assert result.exit_code == 0
-    assert seen == {
+    assert fake_rechunk.seen == {
         "args": ("store", "variant_contig", 4),
+        "target_uncompressed_size_bytes": None,
         "backend_storage": "icechunk",
     }
+
+
+def test_rechunk_cli_passes_target_uncompressed_size(monkeypatch):
+    monkeypatch.setattr(cli, "rechunk_function", fake_rechunk)
+
+    runner = ct.CliRunner()
+    result = runner.invoke(
+        cli.vczstore_main,
+        ["rechunk", "--target-uncompressed-size", "100MB", "store", "variant_contig"],
+        catch_exceptions=False,
+    )
+
+    assert result.exit_code == 0
+    assert fake_rechunk.seen == {
+        "args": ("store", "variant_contig", None),
+        "target_uncompressed_size_bytes": 100_000_000,
+        "backend_storage": None,
+    }
+
+
+def test_rechunk_cli_rejects_neither_size_option():
+    runner = ct.CliRunner()
+    result = runner.invoke(cli.vczstore_main, ["rechunk", "store", "variant_contig"])
+
+    assert result.exit_code == 2
+    assert (
+        "Must specify either VARIANTS_CHUNK_SIZE or --target-uncompressed-size"
+        in result.output
+    )
+
+
+def test_rechunk_cli_rejects_both_size_options():
+    runner = ct.CliRunner()
+    result = runner.invoke(
+        cli.vczstore_main,
+        [
+            "rechunk",
+            "--target-uncompressed-size",
+            "100MB",
+            "store",
+            "variant_contig",
+            "4",
+        ],
+    )
+
+    assert result.exit_code == 2
+    assert (
+        "Cannot specify both VARIANTS_CHUNK_SIZE and --target-uncompressed-size"
+        in result.output
+    )
 
 
 @pytest.mark.parametrize(
