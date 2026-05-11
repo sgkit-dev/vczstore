@@ -4,6 +4,7 @@ import coloredlogs
 from vczstore.append import append as append_function
 from vczstore.create import create as create_function
 from vczstore.normalise import normalise as normalise_function
+from vczstore.rechunk import rechunk as rechunk_function
 from vczstore.remove import remove as remove_function
 
 
@@ -153,6 +154,25 @@ def normalise(
 
 @click.command()
 @click.argument("vcz", type=click.Path())
+@click.argument("variants_array_name", type=str)
+@click.argument("variants_chunk_size", type=click.IntRange(min=1))
+@verbose
+@backend_storage
+def rechunk(vcz, variants_array_name, variants_chunk_size, verbose, backend_storage):
+    """Rechunk a variants array with a larger variants chunk size that is
+    an exact multiple of the min variants chunk size"""
+    setup_logging(verbose)
+    call_or_error(
+        rechunk_function,
+        vcz,
+        variants_array_name,
+        variants_chunk_size,
+        backend_storage=backend_storage,
+    )
+
+
+@click.command()
+@click.argument("vcz", type=click.Path())
 @click.argument("sample_id", type=str)
 @variant_chunks_in_batch
 @verbose
@@ -197,5 +217,6 @@ def vczstore_main():
 vczstore_main.add_command(append)
 vczstore_main.add_command(create)
 vczstore_main.add_command(normalise)
+vczstore_main.add_command(rechunk)
 vczstore_main.add_command(remove)
 vczstore_main.add_command(copy_store_to_icechunk)

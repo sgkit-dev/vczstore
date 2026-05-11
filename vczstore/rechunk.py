@@ -12,7 +12,7 @@ def rechunk(
     backend_storage=None,
 ):
     """Rechunk a variants array with a larger variants chunk size that is
-    an exact multiple of the existing chunk size."""
+    an exact multiple of the min variants chunk size."""
 
     with transaction(vcz, backend_storage=backend_storage, message="rechunk") as vcz:
         root = open_zarr(vcz, mode="r+", backend_storage=backend_storage)

@@ -1,5 +1,6 @@
 import click.testing as ct
 import pytest
+from vcztools.utils import open_zarr
 
 from vczstore import cli
 
@@ -138,6 +139,7 @@ def test_help_lists_commands_in_natural_order():
         "append",
         "create",
         "normalise",
+        "rechunk",
         "remove",
         "copy-store-to-icechunk",
     ]
@@ -147,6 +149,7 @@ def test_help_lists_commands_in_natural_order():
     ("command", "command_args"),
     [
         ("append", ["left", "right"]),
+        ("rechunk", ["store", "variant_contig", "4"]),
         ("remove", ["store", "S1"]),
     ],
 )
@@ -167,6 +170,7 @@ def test_invalid_zarr_backend_storage_is_rejected(command, command_args):
     [
         ["append", "only-one-store"],
         ["normalise", "left", "right"],
+        ["rechunk", "store", "variant_contig"],
         ["remove", "store"],
         ["copy-store-to-icechunk", "only-one-store"],
     ],
@@ -222,6 +226,60 @@ def test_remove_cli_updates_vcz_store(tmp_path):
     vcztools_out, _ = run_vcztools(f"query -l {vcz}")
     assert vcztools_out.strip() == "NA00001\nNA00003"
     check_removed_sample(vcz, "NA00002")
+
+
+def test_rechunk_cli_passes_arguments(monkeypatch):
+    seen = {}
+
+    def fake_rechunk(
+        vcz, variants_array_name, variants_chunk_size, *, backend_storage=None
+    ):
+        seen["args"] = (vcz, variants_array_name, variants_chunk_size)
+        seen["backend_storage"] = backend_storage
+
+    monkeypatch.setattr(cli, "rechunk_function", fake_rechunk)
+
+    runner = ct.CliRunner()
+    result = runner.invoke(
+        cli.vczstore_main,
+        ["rechunk", "--backend-storage", "icechunk", "store", "variant_contig", "4"],
+        catch_exceptions=False,
+    )
+
+    assert result.exit_code == 0
+    assert seen == {
+        "args": ("store", "variant_contig", 4),
+        "backend_storage": "icechunk",
+    }
+
+
+@pytest.mark.parametrize(
+    ("backend_storage", "zarr_format"),
+    [(None, None), ("icechunk", 3)],
+)
+def test_rechunk_cli_updates_vcz_store(tmp_path, backend_storage, zarr_format):
+    vcz = convert_vcf_to_vcz(
+        "sample.vcf.gz",
+        tmp_path,
+        variants_chunk_size=2,
+        zarr_format=zarr_format,
+        backend_storage=backend_storage,
+    )
+    backend_storage_args = (
+        ["--backend-storage", backend_storage] if backend_storage else []
+    )
+
+    runner = ct.CliRunner()
+    result = runner.invoke(
+        cli.vczstore_main,
+        ["rechunk", *backend_storage_args, str(vcz), "variant_position", "4"],
+        catch_exceptions=False,
+    )
+
+    assert result.exit_code == 0
+    root = open_zarr(vcz, backend_storage=backend_storage)
+    assert root["variant_position"].chunks[0] == 4
+    assert root["call_genotype"].chunks[0] == 2
 
 
 def test_append_cli_reports_real_validation_error(tmp_path):
