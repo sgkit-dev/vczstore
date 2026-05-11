@@ -17,6 +17,33 @@ ZARR_METADATA_FILENAMES = frozenset(
 )
 
 
+def parse_size(s: str) -> int:
+    """Parse a human-readable size string (e.g. '100MB', '2GiB') to bytes."""
+    suffixes = [
+        ("TiB", 1024**4),
+        ("GiB", 1024**3),
+        ("MiB", 1024**2),
+        ("KiB", 1024),
+        ("TB", 1000**4),
+        ("GB", 1000**3),
+        ("MB", 1000**2),
+        ("KB", 1000),
+        ("B", 1),
+    ]
+    upper = s.strip().upper()
+    for suffix, factor in suffixes:
+        if upper.endswith(suffix):
+            num = s[: len(s) - len(suffix)].strip()
+            try:
+                return int(float(num) * factor)
+            except ValueError as e:
+                raise ValueError(f"Cannot parse size: {s!r}") from e
+    try:
+        return int(s.strip())
+    except ValueError as e:
+        raise ValueError(f"Cannot parse size: {s!r}") from e
+
+
 def missing_val(arr):
     if arr.dtype.kind == "i":
         return INT_MISSING

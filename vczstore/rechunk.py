@@ -1,3 +1,5 @@
+import math
+
 from bio2zarr.zarr_utils import create_group_array, get_compressor_config
 from vcztools.utils import array_dims, open_zarr
 
@@ -11,8 +13,9 @@ from vczstore.utils import (
 def rechunk(
     vcz,
     variants_array_name,
-    variants_chunk_size,
+    variants_chunk_size=None,
     *,
+    target_uncompressed_size_bytes=None,
     backend_storage=None,
 ):
     """Rechunk a variants array with a larger variants chunk size that is
@@ -30,6 +33,12 @@ def rechunk(
             )
 
         min_chunk_size = compute_min_variants_chunk_size(root)
+
+        if target_uncompressed_size_bytes is not None:
+            variants_chunk_size = compute_variants_chunk_size_from_target(
+                arr, target_uncompressed_size_bytes, min_chunk_size
+            )
+
         if variants_chunk_size % min_chunk_size != 0:
             raise ValueError(
                 f"variants_chunk_size={variants_chunk_size} is not an exact multiple "
@@ -55,3 +64,13 @@ def rechunk(
             compressor=get_compressor_config(arr),
             dimension_names=array_dims(arr),
         )
+
+
+def compute_variants_chunk_size_from_target(
+    arr, target_bytes: int, min_chunk_size: int
+) -> int:
+    """Compute the variants chunk size giving chunks of approximately
+    target_bytes uncompressed."""
+    bytes_per_variant_chunk = math.prod(arr.chunks[1:]) * arr.dtype.itemsize
+    n = target_bytes // bytes_per_variant_chunk
+    return max((n // min_chunk_size) * min_chunk_size, min_chunk_size)
