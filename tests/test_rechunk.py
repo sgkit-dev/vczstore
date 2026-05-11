@@ -34,10 +34,13 @@ def test_rechunk(
     vcz_ic = pathlib.Path(ic_tmp_path) / "store.vcz"
     copy_store_to_icechunk(vcz, vcz_ic)
 
-    rechunk(vcz_ic, "variant_contig", 4)
+    rechunk(vcz_ic, "variant_contig", 4, backend_storage="icechunk")
 
     root = open_zarr(vcz_ic, backend_storage="icechunk")
     assert root["variant_contig"].chunks[0] == 4
     assert root["variant_position"].chunks[0] == 2
     assert root["variant_allele"].chunks[0] == 2
     assert root["call_genotype"].chunks[0] == 2
+
+    # check deleted variant is not in root
+    assert "variant_contig_delete" not in root

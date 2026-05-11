@@ -123,6 +123,7 @@ def transaction(
     backend_storage=None,
     branch="main",
     create_repo=False,
+    rearrange=False,
     message="update",
 ):
     """Create a transaction context manager.
@@ -132,7 +133,11 @@ def transaction(
     """
     if backend_storage == "icechunk":
         cm = icechunk_transaction(
-            file_or_url, branch, create_repo=create_repo, message=message
+            file_or_url,
+            branch,
+            create_repo=create_repo,
+            rearrange=rearrange,
+            message=message,
         )
     else:
         cm = nullcontext(file_or_url)
@@ -141,7 +146,9 @@ def transaction(
 
 
 @contextmanager
-def icechunk_transaction(file_or_url, branch, *, create_repo=False, message="update"):
+def icechunk_transaction(
+    file_or_url, branch, *, create_repo=False, rearrange=False, message="update"
+):
     """Open an Icechunk store in a transaction, then commit on completion.
 
     If `create_repo` is False then the previous commit will be amended so the
@@ -156,17 +163,23 @@ def icechunk_transaction(file_or_url, branch, *, create_repo=False, message="upd
             yield store
     else:
         repo = Repository.open(icechunk_storage)
-        with transaction_amend(repo, branch, message=message) as store:
+        with transaction_amend(
+            repo, branch, message=message, rearrange=rearrange
+        ) as store:
             yield store
 
 
 @contextmanager
-def transaction_amend(repo, branch, message):
+def transaction_amend(repo, branch, message, rearrange=False):
     """Like Icechunk's `transaction` context manager, but using amend not commit."""
-    session = repo.writable_session(branch)
+    session = (
+        repo.rearrange_session(branch) if rearrange else repo.writable_session(branch)
+    )
     yield session.store
     # use amend to overwrite previous commit
-    session.amend(message=message)
+    session.commit(
+        message=message
+    )  # TODO: amend not compaitble with rearrange sessions?
 
 
 def merge_with(
