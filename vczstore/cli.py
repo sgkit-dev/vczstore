@@ -98,16 +98,23 @@ def append(vcz1, vcz2, verbose, backend_storage, io_concurrency, require_direct_
 @click.command()
 @click.argument("vcz_out", type=click.Path())
 @click.argument("vczs", nargs=-1, type=click.Path())
+@click.option(
+    "--samples-chunk-size",
+    type=click.IntRange(min=1),
+    default=None,
+    help="Chunk size in the samples dimension",
+)
 @verbose
 @progress
 @backend_storage
-def create(vcz_out, vczs, verbose, progress, backend_storage):
+def create(vcz_out, vczs, samples_chunk_size, verbose, progress, backend_storage):
     """Create a new, empty store VCZ_OUT using merged variants from VCZS"""
     setup_logging(verbose)
     call_or_error(
         create_function,
         vcz_out,
         *vczs,
+        samples_chunk_size=samples_chunk_size,
         show_progress=progress,
         backend_storage=backend_storage,
     )

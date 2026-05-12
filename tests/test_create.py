@@ -61,6 +61,21 @@ def test_create__single():
     assert root["variant_allele"][0, 1] == "T"
 
 
+def test_create__override_samples_chunk_size():
+    vcz1 = make_vcz(
+        [0],
+        [100],
+        [["A", "T"]],
+        sample_id=["S1"],
+        call_genotype=[[[0, 0]]],
+        samples_chunk_size=1,
+    )
+    vcz_out = zarr.storage.MemoryStore()
+    create(vcz_out, vcz1, samples_chunk_size=2)
+    root = zarr.open(vcz_out)
+    assert root["call_genotype"].chunks[1] == 2
+
+
 def test_create__no_match():
     # Disjoint alts at same position → 2 output variants
     vcz1 = make_vcz([0], [100], [["A", "T"]])
