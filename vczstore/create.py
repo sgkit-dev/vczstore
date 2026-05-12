@@ -521,7 +521,9 @@ def _compute_merged_variants(
     )
 
 
-def create(vcz_out, *vczs, show_progress=False, backend_storage=None) -> None:
+def create(
+    vcz_out, *vczs, samples_chunk_size=None, show_progress=False, backend_storage=None
+) -> None:
     """Create a new, empty store vcz_out using merged variants from vczs
     using -m none semantics with stable variant ordering.
 
@@ -555,6 +557,8 @@ def create(vcz_out, *vczs, show_progress=False, backend_storage=None) -> None:
         root1 = zarr.open(vcz1, mode="r")
 
         if len(vczs) == 1:
+            n_variants = root1["variant_contig"].shape[0]
+
             out_root = open_zarr(
                 vcz_out,
                 mode="w",
@@ -713,13 +717,17 @@ def create(vcz_out, *vczs, show_progress=False, backend_storage=None) -> None:
             if var.startswith("call_"):
                 arr = root1[var]
                 shape = (n_variants, 0) + arr.shape[2:]
-                # TODO: should allow sample chunk size to be overridden/enforced here
+                chunks = arr.chunks
+                if samples_chunk_size is None:
+                    chunks = arr.chunks
+                else:
+                    chunks = (arr.chunks[0], samples_chunk_size) + arr.chunks[2:]
                 create_empty_group_array(
                     out_root,
                     var,
                     shape=shape,
                     dtype=arr.dtype,
-                    chunks=arr.chunks,
+                    chunks=chunks,
                     compressor=get_compressor_config(arr),
                     dimension_names=array_dims(arr),
                 )
