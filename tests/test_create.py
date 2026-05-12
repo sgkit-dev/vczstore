@@ -51,6 +51,16 @@ def test_merge_alts(alts1, alts2, expected):
     assert _merge_alts(alts1, alts2) == expected
 
 
+def test_create__single():
+    vcz1 = make_vcz([0], [100], [["A", "T"]])
+    vcz_out = zarr.storage.MemoryStore()
+    create(vcz_out, vcz1)
+    root = zarr.open(vcz_out)
+    assert_array_equal(root["variant_position"][:], [100])
+    assert root["variant_allele"][0, 0] == "A"
+    assert root["variant_allele"][0, 1] == "T"
+
+
 def test_create__no_match():
     # Disjoint alts at same position → 2 output variants
     vcz1 = make_vcz([0], [100], [["A", "T"]])
