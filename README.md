@@ -34,7 +34,7 @@ Multiallelic sites, and split alleles (mutiple records for a site) are both acce
 
 A VCZ store is just a VCZ file - typically in cloud object store - so it's possible to create one using bio2zarr (e.g. vcf2zarr).
 
-However, when the VCFs being appended contain different variants the store must be created with the full set of variants. This is achieved by calling `vczstore create` with the VCZ files that collectively define the set of variants (e.g. one for each genotype array). (Currently `vczstore create` can only be called with two arguments - but you can call it repeatedly to built up the store from multiple files.)
+However, when the VCFs being appended contain different variants the store must be created with the full set of variants. This is achieved by calling `vczstore create` with the VCZ files that collectively define the set of variants (e.g. one for each genotype array). (Currently `vczstore create` can only be called with one or two input VCZ arguments - but you can call it repeatedly to built up the store from multiple files.)
 
 After creation the store contains no samples.
 
