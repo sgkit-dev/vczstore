@@ -23,12 +23,9 @@
 #  tests/data/vcf/sample-variants.vcf.gz
 
 import pytest
-import zarr
 
 from vczstore.append import append
-from vczstore.normalise import normalise
 from vczstore.remove import remove
-from vczstore.utils import transaction
 
 from .utils import (
     check_removed_sample,
@@ -204,15 +201,12 @@ def test_normalise_and_append(tmp_path, backend_storage, zarr_format):
         backend_storage=backend_storage,
     )
     vcz1 = convert_vcf_to_vcz("sample-part1.vcf.gz", tmp_path, zarr_format=zarr_format)
-    vcz1_norm = zarr.storage.MemoryStore()
 
     backend_storage_option = (
         "" if backend_storage is None else f"--backend-storage {backend_storage}"
     )
 
-    with transaction(vcz0, backend_storage=backend_storage) as store:
-        normalise(store, vcz1, vcz1_norm)
-        append(store, vcz1_norm)
+    append(vcz0, vcz1, backend_storage=backend_storage)
 
     # check equivalence with original VCF
     compare_vcf_and_vcz(

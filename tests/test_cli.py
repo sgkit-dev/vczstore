@@ -350,6 +350,4 @@ def test_append_cli_reports_real_validation_error(tmp_path):
     )
 
     assert result.exit_code == 1
-    assert "Error: Stores being appended must have same number of variants" in (
-        result.output
-    )
+    assert "Error: contig_id fields must be identical" in result.output

@@ -1,5 +1,7 @@
 import logging
 import os
+import pathlib
+import tempfile
 from contextlib import suppress
 from itertools import product
 
@@ -9,9 +11,25 @@ from aiostream import stream
 from vcztools.utils import array_dims, open_zarr
 from zarr.core.sync import sync
 
+from vczstore.normalise import normalise
 from vczstore.utils import compute_min_variants_chunk_size, copy_store, transaction
 
 logger = logging.getLogger(__name__)
+
+
+def _require_normalise(root1, root2):
+    n_variants1 = root1["variant_contig"].shape[0]
+    n_variants2 = root2["variant_contig"].shape[0]
+    if n_variants1 != n_variants2:
+        return True
+    fields = ["contig_id", "variant_contig", "variant_position"]
+    if "normalise_new_alleles" not in root2["variant_allele"].attrs:
+        # normalise has not been called
+        fields.append("variant_allele")
+    for field in fields:
+        if not np.array_equal(root1[field][:], root2[field][:]):
+            return True
+    return False
 
 
 def _assert_append_arrays_compatible(name, arr1, arr2):
@@ -92,6 +110,11 @@ async def _copy_encoded_chunks(
     )
 
 
+def temp_norm_path(prefix=None):
+    with tempfile.TemporaryDirectory(prefix=prefix) as tmp:
+        return pathlib.Path(tmp) / "vcz_norm"
+
+
 def append(
     vcz1,
     vcz2,
@@ -110,11 +133,6 @@ def append(
         root1 = open_zarr(vcz1, mode="r+", backend_storage=backend_storage)
         root2 = zarr.open(vcz2, mode="r")  # assume local
 
-        # normalise will set the 'normalise_new_alleles' flag if there are new alleles
-        normalise_new_alleles = root2["variant_allele"].attrs.get(
-            "normalise_new_alleles", False
-        )
-
         # check preconditions
         sample_id1 = root1["sample_id"]
         sample_id2 = root2["sample_id"]
@@ -122,21 +140,18 @@ def append(
         if common_samples.shape[0] > 0:
             raise ValueError(f"Duplicate samples found: {common_samples}")
 
-        n_variants1 = root1["variant_contig"].shape[0]
-        n_variants2 = root2["variant_contig"].shape[0]
-        if n_variants1 != n_variants2:
-            raise ValueError(
-                "Stores being appended must have same number of variants. "
-                f"First has {n_variants1}, second has {n_variants2}"
-            )
-        fields = ["contig_id", "variant_contig", "variant_position"]
-        if not normalise_new_alleles:
-            fields.append("variant_allele")
-        for field in fields:
-            if not np.array_equal(root1[field][:], root2[field][:]):
-                raise ValueError(
-                    f"Stores being appended must have same values for field '{field}'"
-                )
+        if _require_normalise(root1, root2):
+            # TODO: use a context manager to delete temp path after use
+            vcz2_norm = temp_norm_path(prefix="vczstore")
+            # TODO: pass all optional args
+            normalise(vcz1, vcz2, vcz2_norm, backend_storage=backend_storage)
+            vcz2 = vcz2_norm
+            root2 = zarr.open(vcz2, mode="r")  # assume local
+
+        # normalise will set the 'normalise_new_alleles' flag if there are new alleles
+        normalise_new_alleles = root2["variant_allele"].attrs.get(
+            "normalise_new_alleles", False
+        )
 
         min_chunk_size1 = compute_min_variants_chunk_size(root1)
         min_chunk_size2 = compute_min_variants_chunk_size(root2)

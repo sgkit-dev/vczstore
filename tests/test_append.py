@@ -73,27 +73,54 @@ def test_append():
     )
 
 
-def test_append_fail_num_variants_mismatch():
-    vcz1 = make_vcz([0, 0], [1, 2], [["A", "T"], ["A", "G"]])
-    vcz2 = make_vcz([0], [1], [["A", "C"]])
+def test_append_with_normalise():
+    vcz1 = make_vcz(
+        variant_contig=[0, 0, 0, 0],
+        variant_position=[1, 2, 3, 4],
+        alleles=[
+            ["A", "T"],
+            ["A", "C"],
+            ["A", "G"],
+            ["A", "C"],
+        ],
+        sample_id=["S1"],
+        call_genotype=[
+            [[1, 0]],
+            [[1, 0]],
+            [[0, 1]],
+            [[1, 1]],
+        ],
+    )
 
-    with pytest.raises(
-        ValueError,
-        match="Stores being appended must have same number of variants. "
-        "First has 2, second has 1",
-    ):
-        append(vcz1, vcz2)
+    vcz2 = make_vcz(
+        variant_contig=[0, 0, 0],
+        variant_position=[1, 2, 4],
+        alleles=[
+            ["A", "T"],
+            ["A", "C"],
+            ["A", "C"],
+        ],
+        sample_id=["S2"],
+        call_genotype=[
+            [[0, 0]],
+            [[0, 1]],
+            [[0, 0]],
+        ],
+    )
 
+    append(vcz1, vcz2)
 
-def test_append_fail_alleles_mismatch():
-    vcz1 = make_vcz([0], [1], [["A", "T"]])
-    vcz2 = make_vcz([0], [1], [["A", "C"]])
-
-    with pytest.raises(
-        ValueError,
-        match="Stores being appended must have same values for field 'variant_allele'",
-    ):
-        append(vcz1, vcz2)
+    root1 = zarr.open(vcz1)
+    assert_array_equal(root1["sample_id"][:], ["S1", "S2"])
+    assert_array_equal(
+        root1["call_genotype"][:],
+        [
+            [[1, 0], [0, 0]],
+            [[1, 0], [0, 1]],
+            [[0, 1], [-1, -1]],
+            [[1, 1], [0, 0]],
+        ],
+    )
 
 
 def test_append_fails_for_misaligned_call_chunks():
