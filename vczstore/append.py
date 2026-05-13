@@ -160,11 +160,6 @@ def append(
             vcz2 = vcz2_norm
             root2 = zarr.open(vcz2, mode="r")  # assume local
 
-        # normalise will set the 'normalise_new_alleles' flag if there are new alleles
-        normalise_new_alleles = root2["variant_allele"].attrs.get(
-            "normalise_new_alleles", False
-        )
-
         min_chunk_size1 = compute_min_variants_chunk_size(root1)
         min_chunk_size2 = compute_min_variants_chunk_size(root2)
         if min_chunk_size1 != min_chunk_size2:
@@ -249,6 +244,11 @@ def append(
                     arr1[:, old_num_samples + direct_count : new_num_samples, ...] = (
                         arr2[:, direct_count:incoming_num_samples, ...]
                     )
+
+        # normalise will set the 'normalise_new_alleles' flag if there are new alleles
+        normalise_new_alleles = root2["variant_allele"].attrs.get(
+            "normalise_new_alleles", False
+        )
 
         if normalise_new_alleles:
             logger.info("Overwriting variant_allele array since new alleles present")
