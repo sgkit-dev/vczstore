@@ -1,7 +1,7 @@
 from bio2zarr.zarr_utils import create_empty_group_array, get_compressor_config
-from vcztools.utils import array_dims, open_zarr
+from vcztools.utils import array_dims, make_icechunk_storage, open_zarr
 
-from vczstore.utils import transaction, variant_chunk_slices
+from vczstore.utils import delete_previous_snapshots, transaction, variant_chunk_slices
 
 
 def rechunk(
@@ -59,3 +59,9 @@ def rechunk(
     ) as store:
         root = open_zarr(store, mode="r+", backend_storage=backend_storage)
         del root[var_delete]
+
+    from icechunk import Repository
+
+    icechunk_storage = make_icechunk_storage(vcz)
+    repo = Repository.open(icechunk_storage)
+    delete_previous_snapshots(repo)

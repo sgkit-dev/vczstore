@@ -4,7 +4,7 @@ from vcztools.utils import open_zarr
 
 from tests.utils import make_vcz
 from vczstore.rechunk import rechunk
-from vczstore.utils import copy_store_to_icechunk
+from vczstore.utils import copy_store_to_icechunk, print_history
 
 
 def test_rechunk(
@@ -35,6 +35,8 @@ def test_rechunk(
     copy_store_to_icechunk(vcz, vcz_ic)
 
     rechunk(vcz_ic, "variant_contig", 4, backend_storage="icechunk")
+
+    print_history(vcz_ic)
 
     root = open_zarr(vcz_ic, backend_storage="icechunk")
     assert root["variant_contig"].chunks[0] == 4

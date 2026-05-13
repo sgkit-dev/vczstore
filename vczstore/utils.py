@@ -182,6 +182,27 @@ def transaction_amend(repo, branch, message, rearrange=False):
     )  # TODO: amend not compaitble with rearrange sessions?
 
 
+def print_history(file_or_url):
+    from icechunk import Repository
+
+    icechunk_storage = make_icechunk_storage(file_or_url)
+    repo = Repository.open(icechunk_storage)
+    print("\n".join([str((a.id, a.message)) for a in repo.ancestry(branch="main")]))
+
+
+def delete_previous_snapshots(repo, branch="main"):
+    """
+    Delete all previous snapshots except the current one
+    to avoid retaining data that has been explicitly removed.
+    """
+    # see https://icechunk.io/en/stable/expiration/
+
+    current_snapshot = list(repo.ancestry(branch=branch))[0]
+    expiry_time = current_snapshot.written_at
+    repo.expire_snapshots(older_than=expiry_time)
+    repo.garbage_collect(expiry_time)
+
+
 def merge_with(
     l1: list,
     l2: list,
