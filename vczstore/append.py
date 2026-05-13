@@ -119,9 +119,13 @@ def append(
     vcz1,
     vcz2,
     *,
+    haploid_contigs=None,
+    allow_new_alleles=False,
+    variant_chunks_in_batch=None,
+    show_progress=False,
+    backend_storage=None,
     io_concurrency=None,
     require_direct_copy=False,
-    backend_storage=None,
 ):
     """Append vcz2 to vcz1 in place"""
     if io_concurrency is None:
@@ -143,8 +147,16 @@ def append(
         if _require_normalise(root1, root2):
             # TODO: use a context manager to delete temp path after use
             vcz2_norm = temp_norm_path(prefix="vczstore")
-            # TODO: pass all optional args
-            normalise(vcz1, vcz2, vcz2_norm, backend_storage=backend_storage)
+            normalise(
+                vcz1,
+                vcz2,
+                vcz2_norm,
+                haploid_contigs=haploid_contigs,
+                allow_new_alleles=allow_new_alleles,
+                variant_chunks_in_batch=variant_chunks_in_batch,
+                show_progress=show_progress,
+                backend_storage=backend_storage,
+            )
             vcz2 = vcz2_norm
             root2 = zarr.open(vcz2, mode="r")  # assume local
 

@@ -51,6 +51,15 @@ backend_storage = click.option(
     help="Zarr backend storage to use; one of 'obstore' or 'icechunk'.",
 )
 
+allow_new_alleles = click.option(
+    "--allow-new-alleles",
+    is_flag=True,
+    help=(
+        "If new alleles are found at a variant site in vcz2 the variant_allele array "
+        "is updated, otherwise the operation fails if not specified."
+    ),
+)
+
 variant_chunks_in_batch = click.option(
     "--variant-chunks-in-batch",
     type=click.IntRange(min=1),
@@ -71,7 +80,10 @@ io_concurrency = click.option(
 @click.command()
 @click.argument("vcz1", type=click.Path())
 @click.argument("vcz2", type=click.Path())
+@allow_new_alleles
+@variant_chunks_in_batch
 @verbose
+@progress
 @backend_storage
 @io_concurrency
 @click.option(
@@ -82,16 +94,29 @@ io_concurrency = click.option(
         "This requires a sample chunk-aligned destination and incoming sample count."
     ),
 )
-def append(vcz1, vcz2, verbose, backend_storage, io_concurrency, require_direct_copy):
+def append(
+    vcz1,
+    vcz2,
+    allow_new_alleles,
+    variant_chunks_in_batch,
+    verbose,
+    progress,
+    backend_storage,
+    io_concurrency,
+    require_direct_copy,
+):
     """Append vcz2 to vcz1 in place"""
     setup_logging(verbose)
     call_or_error(
         append_function,
         vcz1,
         vcz2,
+        allow_new_alleles=allow_new_alleles,
+        variant_chunks_in_batch=variant_chunks_in_batch,
+        show_progress=progress,
+        backend_storage=backend_storage,
         io_concurrency=io_concurrency,
         require_direct_copy=require_direct_copy,
-        backend_storage=backend_storage,
     )
 
 
@@ -124,14 +149,7 @@ def create(vcz_out, vczs, samples_chunk_size, verbose, progress, backend_storage
 @click.argument("vcz1", type=click.Path())
 @click.argument("vcz2", type=click.Path())
 @click.argument("vcz2_norm", type=click.Path())
-@click.option(
-    "--allow-new-alleles",
-    is_flag=True,
-    help=(
-        "If new alleles are found at a variant site in vcz2 the variant_allele array "
-        "is updated, otherwise the operation fails if not specified."
-    ),
-)
+@allow_new_alleles
 @variant_chunks_in_batch
 @verbose
 @progress
