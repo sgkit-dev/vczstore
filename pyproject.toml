@@ -17,12 +17,12 @@ authors = [
 ]
 dependencies = [
   "aiostream>=0.7.1",
-  "bio2zarr @ git+https://github.com/sgkit-dev/bio2zarr.git",
+  "bio2zarr>=0.2.1",
   "click>=8.2.0",
   "more_itertools",
   "numpy>=1.23.5,<2.4",
   "tqdm",
-  "vcztools @ git+https://github.com/sgkit-dev/vcztools.git",
+  "vcztools>=0.2.0",
   "zarr>=3.1",
 ]
 requires-python = ">=3.12"
