@@ -22,7 +22,7 @@ dependencies = [
   "more_itertools",
   "numpy>=1.23.5,<2.4",
   "tqdm",
-  "vcztools @ git+https://github.com/sgkit-dev/vcztools.git",
+  "vcztools>=0.2",
   "zarr>=3.1",
 ]
 requires-python = ">=3.12"
